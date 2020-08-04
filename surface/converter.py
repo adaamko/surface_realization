@@ -53,6 +53,35 @@ TEMPLATE = (
 )
 
 
+def get_conll_from_file(fn):
+    id_to_conll = defaultdict(dict)
+
+    sentences = 0
+    with open(fn, "r") as f:
+        for line in f:
+            if line == "\n":
+                sentences += 1
+            if line.startswith("#"):
+                continue
+            if line != "\n":
+                fields = line.split("\t")
+                word_id = fields[0]
+                lemma = fields[1]
+                word = fields[2]
+                tree_pos = fields[3]
+                ud_pos = fields[4]
+                mor = fields[5]
+                head = fields[6]
+                ud_edge = fields[7]
+                comp_edge = fields[8]
+                space_after = fields[9]
+
+                id_to_conll[sentences][word_id] = [
+                    lemma, word, tree_pos, ud_pos,  mor, head, ud_edge, comp_edge, space_after]
+
+    return id_to_conll
+
+
 def sanitize_word(word):
     for pattern, target in REPLACE_MAP.items():
         word = word.replace(pattern, target)
@@ -64,9 +93,11 @@ def sanitize_word(word):
 
     return word
 
+
 def get_args():
-    parser = argparse.ArgumentParser(description = "Convert conllu file to isi file")
-    parser.add_argument("conll_file", type = str, help = "path to the CoNLL file")
+    parser = argparse.ArgumentParser(
+        description="Convert conllu file to isi file")
+    parser.add_argument("conll_file", type=str, help="path to the CoNLL file")
     return parser.parse_args()
 
 
@@ -81,11 +112,12 @@ def make_default_structure(graph_data, word_id):
 def to_tokenized_output(result_dir, output_dir):
     for filename in os.listdir(result_dir):
         result_filename = os.path.join(result_dir, filename)
-        output_filename = os.path.join(output_dir, filename.split(".")[0] + ".txt")
+        output_filename = os.path.join(
+            output_dir, filename.split(".")[0] + ".txt")
         sentences = []
         current_sentence = []
         with open(result_filename, "r") as f:
-            for i,line in enumerate(f):            
+            for i, line in enumerate(f):
                 if line == "\n":
                     sen = " ".join(current_sentence)
                     current_sentence = []
@@ -97,17 +129,17 @@ def to_tokenized_output(result_dir, output_dir):
                     word_id = fields[0]
                     word = fields[2]
                     current_sentence.append(word)
-                    
+
         with open(output_filename, "w") as f:
-            for i,sentence in enumerate(sentences):
-                #if i > 942:
-                    #f.write("#sent_id = " + str(i-943+1) + "\n")
-                    #f.write("# text = " + sentence + "\n")
-                    #f.write("\n")
+            for i, sentence in enumerate(sentences):
+                # if i > 942:
+                    # f.write("#sent_id = " + str(i-943+1) + "\n")
+                    # f.write("# text = " + sentence + "\n")
+                    # f.write("\n")
                 f.write("#sent_id = " + str(i+1) + "\n")
                 f.write("#text = " + sentence + "\n")
                 f.write("\n")
-        
+
 
 def extract_rules(dev):
     graph_data = {}
@@ -116,7 +148,7 @@ def extract_rules(dev):
     id_to_sentence = {}
     sentences = 0
     with open(dev, "r") as f:
-        for i,line in enumerate(f):            
+        for i, line in enumerate(f):
             if line == "\n":
                 words = []
                 for w in graph_data:
@@ -125,21 +157,24 @@ def extract_rules(dev):
                     rules = []
                     if "tree_pos" not in graph_data[w]:
                         continue
-                    
+
                     subgraphs["root"] = graph_data[w]["tree_pos"]
-                    
-                    for dep in graph_data[w]["deps"]:                        
+
+                    for dep in graph_data[w]["deps"]:
                         edge_dep = graph_data[w]["deps"][dep]
                         to_pos = graph_data[dep]["tree_pos"]
                         mor = graph_data[dep]["mor"]
-                            
+
                         if "tree_pos" in graph_data[w]:
                             if "lin=+" in mor:
-                                subgraphs["graph"].append({"to":to_pos, "edge":edge_dep.replace(":", "_"), "dir":"S"})
+                                subgraphs["graph"].append(
+                                    {"to": to_pos, "edge": edge_dep.replace(":", "_"), "dir": "S"})
                             elif "lin=-" in mor:
-                                subgraphs["graph"].append({"to":to_pos, "edge":edge_dep.replace(":", "_"), "dir":"B"})
+                                subgraphs["graph"].append(
+                                    {"to": to_pos, "edge": edge_dep.replace(":", "_"), "dir": "B"})
                             else:
-                                subgraphs["graph"].append({"to":to_pos, "edge":edge_dep.replace(":", "_"), "dir":None})
+                                subgraphs["graph"].append(
+                                    {"to": to_pos, "edge": edge_dep.replace(":", "_"), "dir": None})
 
                     id_to_rules[sentences].append(subgraphs)
                 graph_data = {}
@@ -162,7 +197,7 @@ def extract_rules(dev):
                 ud_edge = fields[7]
                 comp_edge = fields[8]
                 space_after = fields[9]
-                
+
                 make_default_structure(graph_data, word_id)
                 graph_data[word_id]["word"] = lemma
                 graph_data[word_id]["tree_pos"] = sanitize_word(ud_pos)
@@ -178,7 +213,8 @@ def print_output(graph_data, graph_root):
 
 
 def make_id_graph(graph_data, word_id):
-    graph_string = "({1}_{0} / {1}_{0}".format(str(word_id), graph_data[word_id]["ud_pos"])
+    graph_string = "({1}_{0} / {1}_{0}".format(str(word_id),
+                                               graph_data[word_id]["ud_pos"])
     for other_id in graph_data[word_id]["deps"]:
         edge = graph_data[word_id]["deps"][other_id]
         graph_string += ' :{0} '.format(edge.replace(':', '_'))
