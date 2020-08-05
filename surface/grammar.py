@@ -328,7 +328,7 @@ class Grammar():
             #dep_name = fields[2].replace(":", "_")
             if head:
                 start_rule_set.add(head)
-            self.print_rules_constraint(
+            self.print_rules(
                 head,
                 dep_before,
                 dep_after,
@@ -339,48 +339,6 @@ class Grammar():
                 grammar_fn)
 
         self.print_start_rule(start_rule_set, grammar_fn)
-
-    def print_rules(self,
-                    h,
-                    d_before,
-                    d_after,
-                    counter,
-                    frequency,
-                    freq_sums,
-                    rules,
-                    grammar_fn):
-        freq = frequency / freq_sums
-        rewrite_rule = h + " -> rule_" + str(counter) + "(" + h + ","
-        if not d_before and not d_after:
-            return
-
-        before_nodes = []
-        before_edges = []
-        after_nodes = []
-        after_edges = []
-
-        if d_before:
-            for n in d_before.split("&"):
-                n = n.split("|")
-                rewrite_rule += n[0] + ","
-                before_nodes.append(n[0])
-                before_edges.append(n[1])
-
-        if d_after:
-            for n in d_after.split("&"):
-                n = n.split("|")
-                rewrite_rule += n[0] + ","
-                after_nodes.append(n[0])
-                after_edges.append(n[1])
-
-        rewrite_rule = rewrite_rule.strip(",")
-        rewrite_rule += ") "
-        rewrite_rule += "[" + str(freq) + "]"
-
-        print(rewrite_rule)
-        self.generate_string_line(h, before_nodes, after_nodes, grammar_fn)
-        self.generate_graph_line(before_edges, after_edges, grammar_fn)
-        print()
 
     def remove_bidirection(self, id_to_rules):
         graphs_with_dirs = {}
@@ -398,15 +356,15 @@ class Grammar():
                         id_to_rules[ind][i]["dir"] = None
                         id_to_rules[graph_id[0]][graph_id[1]]["dir"] = None
 
-    def print_rules_constraint(self,
-                               h,
-                               d_before,
-                               d_after,
-                               counter,
-                               frequency,
-                               freq_sums,
-                               rules,
-                               grammar_fn):
+    def print_rules(self,
+                    h,
+                    d_before,
+                    d_after,
+                    counter,
+                    frequency,
+                    freq_sums,
+                    rules,
+                    grammar_fn):
         freq = frequency / freq_sums
         rewrite_rule = h + " -> rule_" + str(counter) + "(" + h + ","
         if not d_before and not d_after:
