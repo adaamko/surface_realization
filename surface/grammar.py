@@ -4,6 +4,7 @@ import copy
 import operator
 import argparse
 from itertools import chain, combinations
+from tqdm import tqdm
 from collections import defaultdict, OrderedDict
 
 ENGLISH_WORD = re.compile("^[a-zA-Z0-9]*$")
@@ -128,55 +129,13 @@ class Grammar():
             return chain(*map(lambda x: combinations(ss, x), range(0, len(ss)+1)))
 
         with open(fn_train, "r") as f:
-            for i, line in enumerate(f):
+            for i, line in tqdm(enumerate(f)):
                 if line.startswith("#"):
                     continue
                 if line == "\n":
+                    print(i)
                     for w in graph_data:
-                        nodes_before = []
-                        nodes_after = []
-                        deps = graph_data[w]["deps"]
-
-                        for subset in all_subsets(list(deps.keys())):
-                            for dep in subset:
-                                if "tree_pos" in graph_data[w]:
-                                    if int(dep) < int(w):
-                                        nodes_before.append(int(dep))
-                                    elif int(dep) > int(w):
-                                        nodes_after.append(int(dep))
-
-                            s_nodes_before = sorted(nodes_before)
-                            s_nodes_after = sorted(nodes_after)
-                            nodes = sorted(s_nodes_before + s_nodes_after)
-                            line_key = ""
-                            order_key = ""
-                            if "tree_pos" not in graph_data[w]:
-                                line_key += ">"
-                            else:
-                                line_key += graph_data[w]["tree_pos"] + ">"
-                                order_key += graph_data[w]["tree_pos"]
-
-                            for n in s_nodes_before:
-                                n = str(n)
-                                edge = graph_data[w]["deps"][n]
-                                pos = graph_data[n]["tree_pos"]
-                                line_key += pos + "|" + edge + "&"
-                            line_key += ">"
-
-                            for n in s_nodes_after:
-                                n = str(n)
-                                edge = graph_data[w]["deps"][n]
-                                pos = graph_data[n]["tree_pos"]
-                                line_key += pos + "|" + edge + "&"
-
-                            for n in nodes:
-                                n = str(n)
-                                edge = graph_data[w]["deps"][n]
-                                pos = graph_data[n]["tree_pos"]
-                                order_key += pos + "|" + edge + "&"
-
-                            pos_to_order[order_key].add(line_key)
-                            order_to_count[line_key] += 1
+                        self.count_on_graph(graph_data, w, all_subsets, pos_to_order, order_to_count)
 
                     graph_data = {}
                     noun_list = []
@@ -185,6 +144,7 @@ class Grammar():
                     fields = line.split("\t")
                     word_id = fields[0]
                     word = fields[1]
+                    lemma = fields[2]
                     tree_pos = fields[3]
                     ud_pos = fields[4]
                     mor = fields[5]
@@ -193,6 +153,7 @@ class Grammar():
 
                     self.make_default_structure(graph_data, word_id)
                     graph_data[word_id]["word"] = word
+                    graph_data[word_id]["lemma"] = lemma
                     graph_data[word_id]["tree_pos"] = self.sanitize_word(
                         ud_pos)
                     graph_data[word_id]["mor"] = mor
@@ -205,6 +166,73 @@ class Grammar():
         sorted_dict = OrderedDict(sorted_x)
         self.add_unseen_rules(sorted_dict, fn_dev)
         self.subgraphs = sorted_dict
+
+    def count_on_graph(self, graph_data, w, all_subsets, pos_to_order, order_to_count):
+        deps = graph_data[w]["deps"]
+
+        for subset in all_subsets(list(deps.keys())):
+            nodes_before = []
+            nodes_after = []
+            for dep in subset:
+                if "tree_pos" in graph_data[w]:
+                    if int(dep) < int(w):
+                        nodes_before.append(int(dep))
+                    elif int(dep) > int(w):
+                        nodes_after.append(int(dep))
+
+            s_nodes_before = sorted(nodes_before)
+            s_nodes_after = sorted(nodes_after)
+            nodes = sorted(s_nodes_before + s_nodes_after)
+            
+            pos_line_key = ""
+            pos_order_key = ""
+
+            lemma_line_key = ""
+            lemma_order_key = ""
+            
+            if "tree_pos" not in graph_data[w]:
+                pos_line_key += ">"
+                lemma_line_key += ">"
+            else:
+                pos_line_key += graph_data[w]["tree_pos"] + ">"
+                pos_order_key += graph_data[w]["tree_pos"]
+
+                lemma_line_key += graph_data[w]["lemma"].lower() + ">"
+                lemma_order_key += graph_data[w]["lemma"].lower()
+
+            for n in s_nodes_before:
+                n = str(n)
+                edge = graph_data[w]["deps"][n]
+                pos = graph_data[n]["tree_pos"]
+                lemma = graph_data[n]["lemma"]
+
+                pos_line_key += pos + "|" + edge + "&"
+                lemma_line_key += lemma + "|" + edge + "&"
+            pos_line_key += ">"
+            lemma_line_key += ">"
+
+            for n in s_nodes_after:
+                n = str(n)
+                edge = graph_data[w]["deps"][n]
+                pos = graph_data[n]["tree_pos"]
+                lemma = graph_data[n]["lemma"]
+
+                pos_line_key += pos + "|" + edge + "&"
+                lemma_line_key += lemma + "|" + edge + "&"
+
+            for n in nodes:
+                n = str(n)
+                edge = graph_data[w]["deps"][n]
+                pos = graph_data[n]["tree_pos"]
+                lemma = graph_data[n]["lemma"]
+
+                pos_order_key += pos + "|" + edge + "&"
+                lemma_order_key += pos + "|" + edge + "&"
+
+            pos_to_order[pos_order_key].add(pos_line_key)
+            pos_to_order[lemma_order_key].add(lemma_line_key)
+            order_to_count[pos_line_key] += 1
+            order_to_count[lemma_line_key] += 1
 
     def sanitize_word(self, word):
         for pattern, target in REPLACE_MAP.items():
