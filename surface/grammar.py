@@ -2,6 +2,8 @@ import sys
 import re
 import copy
 import operator
+import argparse
+from itertools import chain, combinations
 from collections import defaultdict, OrderedDict
 
 ENGLISH_WORD = re.compile("^[a-zA-Z0-9]*$")
@@ -50,9 +52,6 @@ class Grammar():
         super().__init__()
         self.subgraphs_unordered = defaultdict(set)
         self.subgraphs = OrderedDict()
-
-        self.edges_unordered = defaultdict(set)
-        self.edges = OrderedDict()
 
     def make_default_structure(self, graph_data, word_id):
         if word_id not in graph_data:
@@ -119,70 +118,14 @@ class Grammar():
                     self.make_default_structure(graph_data, head)
                     graph_data[head]["deps"][word_id] = ud_edge
 
-    def train_edges(self, fn_train, fn_dev):
-        graph_data = {}
-        pos_to_order = defaultdict(set)
-        order_to_count = defaultdict(lambda: 1)
-
-        with open(fn_train, "r") as f:
-            for i, line in enumerate(f):
-                if line.startswith("#"):
-                    continue
-                if line == "\n":
-                    for w in graph_data:
-                        for dep in graph_data[w]["deps"]:
-                            if "tree_pos" in graph_data[w]:
-                                line_key = ""
-                                order_key = ""
-                                line_key += graph_data[w]["tree_pos"] + ">"
-                                order_key += graph_data[w]["tree_pos"]
-
-                                if int(dep) < int(w):
-                                    edge = graph_data[w]["deps"][dep]
-                                    pos = graph_data[dep]["tree_pos"]
-                                    line_key += pos + "|" + edge + "&"
-                                    order_key += pos + "|" + edge + "&"
-                                    line_key += ">"
-                                    order_to_count[line_key] += 1
-                                elif int(dep) > int(w):
-                                    edge = graph_data[w]["deps"][dep]
-                                    pos = graph_data[dep]["tree_pos"]
-                                    line_key += ">"
-                                    line_key += pos + "|" + edge + "&"
-                                    order_to_count[line_key] += 1
-
-                    graph_data = {}
-                    continue
-                if line != "\n":
-                    fields = line.split("\t")
-                    word_id = fields[0]
-                    word = fields[1]
-                    tree_pos = fields[3]
-                    ud_pos = fields[4]
-                    mor = fields[5]
-                    head = fields[6]
-                    ud_edge = fields[7]
-
-                    self.make_default_structure(graph_data, word_id)
-                    graph_data[word_id]["word"] = word
-                    graph_data[word_id]["tree_pos"] = self.sanitize_word(
-                        ud_pos)
-                    graph_data[word_id]["mor"] = mor
-
-                    self.make_default_structure(graph_data, head)
-                    graph_data[head]["deps"][word_id] = ud_edge
-
-        sorted_x = sorted(order_to_count.items(),
-                          key=operator.itemgetter(1), reverse=True)
-        sorted_dict = OrderedDict(sorted_x)
-        self.add_unseen_rules(sorted_dict, fn_dev)
-        self.edges = sorted_dict
-
     def train_subgraphs(self, fn_train, fn_dev):
         graph_data = {}
         noun_list = []
         pos_to_order = defaultdict(set)
         order_to_count = defaultdict(lambda: 1)
+
+        def all_subsets(ss):
+            return chain(*map(lambda x: combinations(ss, x), range(0, len(ss)+1)))
 
         with open(fn_train, "r") as f:
             for i, line in enumerate(f):
@@ -192,45 +135,48 @@ class Grammar():
                     for w in graph_data:
                         nodes_before = []
                         nodes_after = []
-                        for dep in graph_data[w]["deps"]:
-                            if "tree_pos" in graph_data[w]:
-                                if int(dep) < int(w):
-                                    nodes_before.append(int(dep))
-                                elif int(dep) > int(w):
-                                    nodes_after.append(int(dep))
+                        deps = graph_data[w]["deps"]
 
-                        s_nodes_before = sorted(nodes_before)
-                        s_nodes_after = sorted(nodes_after)
-                        nodes = sorted(s_nodes_before + s_nodes_after)
-                        line_key = ""
-                        order_key = ""
-                        if "tree_pos" not in graph_data[w]:
+                        for subset in all_subsets(list(deps.keys())):
+                            for dep in subset:
+                                if "tree_pos" in graph_data[w]:
+                                    if int(dep) < int(w):
+                                        nodes_before.append(int(dep))
+                                    elif int(dep) > int(w):
+                                        nodes_after.append(int(dep))
+
+                            s_nodes_before = sorted(nodes_before)
+                            s_nodes_after = sorted(nodes_after)
+                            nodes = sorted(s_nodes_before + s_nodes_after)
+                            line_key = ""
+                            order_key = ""
+                            if "tree_pos" not in graph_data[w]:
+                                line_key += ">"
+                            else:
+                                line_key += graph_data[w]["tree_pos"] + ">"
+                                order_key += graph_data[w]["tree_pos"]
+
+                            for n in s_nodes_before:
+                                n = str(n)
+                                edge = graph_data[w]["deps"][n]
+                                pos = graph_data[n]["tree_pos"]
+                                line_key += pos + "|" + edge + "&"
                             line_key += ">"
-                        else:
-                            line_key += graph_data[w]["tree_pos"] + ">"
-                            order_key += graph_data[w]["tree_pos"]
 
-                        for n in s_nodes_before:
-                            n = str(n)
-                            edge = graph_data[w]["deps"][n]
-                            pos = graph_data[n]["tree_pos"]
-                            line_key += pos + "|" + edge + "&"
-                        line_key += ">"
+                            for n in s_nodes_after:
+                                n = str(n)
+                                edge = graph_data[w]["deps"][n]
+                                pos = graph_data[n]["tree_pos"]
+                                line_key += pos + "|" + edge + "&"
 
-                        for n in s_nodes_after:
-                            n = str(n)
-                            edge = graph_data[w]["deps"][n]
-                            pos = graph_data[n]["tree_pos"]
-                            line_key += pos + "|" + edge + "&"
+                            for n in nodes:
+                                n = str(n)
+                                edge = graph_data[w]["deps"][n]
+                                pos = graph_data[n]["tree_pos"]
+                                order_key += pos + "|" + edge + "&"
 
-                        for n in nodes:
-                            n = str(n)
-                            edge = graph_data[w]["deps"][n]
-                            pos = graph_data[n]["tree_pos"]
-                            order_key += pos + "|" + edge + "&"
-
-                        pos_to_order[order_key].add(line_key)
-                        order_to_count[line_key] += 1
+                            pos_to_order[order_key].add(line_key)
+                            order_to_count[line_key] += 1
 
                     graph_data = {}
                     noun_list = []
@@ -527,3 +473,23 @@ class Grammar():
             print("[string] ?1", file=grammar_fn)
             print("[ud] ?1", file=grammar_fn)
             print(file=grammar_fn)
+
+
+def get_args():
+    parser = argparse.ArgumentParser(
+        description="Train and generate IRTG parser")
+    parser.add_argument("--train_file", type=str,
+                        help="path to the CoNLL train file")
+    parser.add_argument("--test_file", type=str,
+                        help="path to the CoNLL test file")
+    return parser.parse_args()
+
+
+def main():
+    args = get_args()
+    grammar = Grammar()
+    grammar.train_subgraphs(args.train_file, args.test_file)
+
+
+if __name__ == "__main__":
+    main()
