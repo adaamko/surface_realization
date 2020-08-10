@@ -3,9 +3,10 @@ import re
 import copy
 import operator
 import argparse
-from itertools import chain, combinations
+from itertools import chain, combinations, product
 from tqdm import tqdm
 from collections import defaultdict, OrderedDict
+from memory_profiler import profile
 
 ENGLISH_WORD = re.compile("^[a-zA-Z0-9]*$")
 
@@ -133,9 +134,9 @@ class Grammar():
                 if line.startswith("#"):
                     continue
                 if line == "\n":
-                    print(i)
                     for w in graph_data:
-                        self.count_on_graph(graph_data, w, all_subsets, pos_to_order, order_to_count)
+                        self.count_on_graph(
+                            graph_data, w, all_subsets, pos_to_order, order_to_count)
 
                     graph_data = {}
                     noun_list = []
@@ -155,7 +156,7 @@ class Grammar():
                     graph_data[word_id]["word"] = word
                     graph_data[word_id]["lemma"] = lemma
                     graph_data[word_id]["tree_pos"] = self.sanitize_word(
-                        ud_pos)
+                        tree_pos)
                     graph_data[word_id]["mor"] = mor
 
                     self.make_default_structure(graph_data, head)
@@ -164,12 +165,12 @@ class Grammar():
         sorted_x = sorted(order_to_count.items(),
                           key=operator.itemgetter(1), reverse=True)
         sorted_dict = OrderedDict(sorted_x)
-        self.add_unseen_rules(sorted_dict, fn_dev)
+        # self.add_unseen_rules(sorted_dict, fn_dev)
         self.subgraphs = sorted_dict
 
     def count_on_graph(self, graph_data, w, all_subsets, pos_to_order, order_to_count):
         deps = graph_data[w]["deps"]
-
+        possibility = 0
         for subset in all_subsets(list(deps.keys())):
             nodes_before = []
             nodes_after = []
@@ -183,56 +184,65 @@ class Grammar():
             s_nodes_before = sorted(nodes_before)
             s_nodes_after = sorted(nodes_after)
             nodes = sorted(s_nodes_before + s_nodes_after)
-            
-            pos_line_key = ""
-            pos_order_key = ""
 
-            lemma_line_key = ""
-            lemma_order_key = ""
-            
-            if "tree_pos" not in graph_data[w]:
+            # From the IDS, get (lemma, pos) pairs, so after the descartes product of the list can be calculated
+            nodes_paired = [[graph_data[str(node)]["lemma"].lower(
+            ), graph_data[str(node)]["tree_pos"]] for node in nodes]
+
+            for combined in product(*nodes_paired):
+                possibility += 1
+                for i, elem in enumerate(combined):
+                    graph_data[str(nodes[i])]["element"] = elem
+
+                pos_line_key = ""
+                pos_order_key = ""
+
+                lemma_line_key = ""
+                lemma_order_key = ""
+
+                if "tree_pos" not in graph_data[w]:
+                    pos_line_key += ">"
+                    lemma_line_key += ">"
+                else:
+                    pos_line_key += graph_data[w]["tree_pos"] + ">"
+                    pos_order_key += graph_data[w]["tree_pos"] + ">"
+
+                    lemma_line_key += graph_data[w]["lemma"].lower() + ">"
+                    lemma_order_key += graph_data[w]["lemma"].lower() + ">"
+
+                for n in s_nodes_before:
+                    n = str(n)
+                    edge = graph_data[w]["deps"][n]
+                    pos = graph_data[n]["element"]
+                    lemma = graph_data[n]["element"]
+
+                    pos_line_key += pos + "|" + edge + "&"
+                    lemma_line_key += lemma + "|" + edge + "&"
                 pos_line_key += ">"
                 lemma_line_key += ">"
-            else:
-                pos_line_key += graph_data[w]["tree_pos"] + ">"
-                pos_order_key += graph_data[w]["tree_pos"]
 
-                lemma_line_key += graph_data[w]["lemma"].lower() + ">"
-                lemma_order_key += graph_data[w]["lemma"].lower()
+                for n in s_nodes_after:
+                    n = str(n)
+                    edge = graph_data[w]["deps"][n]
+                    pos = graph_data[n]["element"]
+                    lemma = graph_data[n]["element"]
 
-            for n in s_nodes_before:
-                n = str(n)
-                edge = graph_data[w]["deps"][n]
-                pos = graph_data[n]["tree_pos"]
-                lemma = graph_data[n]["lemma"]
+                    pos_line_key += pos + "|" + edge + "&"
+                    lemma_line_key += lemma + "|" + edge + "&"
 
-                pos_line_key += pos + "|" + edge + "&"
-                lemma_line_key += lemma + "|" + edge + "&"
-            pos_line_key += ">"
-            lemma_line_key += ">"
+                for n in nodes:
+                    n = str(n)
+                    edge = graph_data[w]["deps"][n]
+                    pos = graph_data[n]["element"]
+                    lemma = graph_data[n]["element"]
 
-            for n in s_nodes_after:
-                n = str(n)
-                edge = graph_data[w]["deps"][n]
-                pos = graph_data[n]["tree_pos"]
-                lemma = graph_data[n]["lemma"]
+                    pos_order_key += pos + "|" + edge + "&"
+                    lemma_order_key += pos + "|" + edge + "&"
 
-                pos_line_key += pos + "|" + edge + "&"
-                lemma_line_key += lemma + "|" + edge + "&"
-
-            for n in nodes:
-                n = str(n)
-                edge = graph_data[w]["deps"][n]
-                pos = graph_data[n]["tree_pos"]
-                lemma = graph_data[n]["lemma"]
-
-                pos_order_key += pos + "|" + edge + "&"
-                lemma_order_key += pos + "|" + edge + "&"
-
-            pos_to_order[pos_order_key].add(pos_line_key)
-            pos_to_order[lemma_order_key].add(lemma_line_key)
-            order_to_count[pos_line_key] += 1
-            order_to_count[lemma_line_key] += 1
+                pos_to_order[pos_order_key].add(pos_line_key)
+                pos_to_order[lemma_order_key].add(lemma_line_key)
+                order_to_count[pos_line_key] += 1
+                order_to_count[lemma_line_key] += 1
 
     def sanitize_word(self, word):
         for pattern, target in REPLACE_MAP.items():
@@ -285,7 +295,7 @@ class Grammar():
             file=grammar_fn)
         print("\n", file=grammar_fn)
 
-        trained_edges = self.edges if binary else self.subgraphs
+        trained_edges = self.subgraphs
 
         frequencies = [int(trained_edges[subgraph])
                        for subgraph in trained_edges]
