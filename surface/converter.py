@@ -156,6 +156,12 @@ def extract_rules(dev):
                     subgraphs = {"root": None, "graph": []}
                     rules = []
                     if "tree_pos" not in graph_data[w]:
+                        subgraphs["root"] = "ROOT"
+                        for dep in graph_data[w]["deps"]:
+                            to_pos = graph_data[dep]["tree_pos"]
+                            word = graph_data[dep]["word"].lower()
+                            subgraphs["graph"].append(
+                                    {"to": (word.lower(), to_pos), "edge": "root", "dir": None})
                         continue
 
                     subgraphs["root"] = graph_data[w]["tree_pos"]
@@ -163,18 +169,19 @@ def extract_rules(dev):
                     for dep in graph_data[w]["deps"]:
                         edge_dep = graph_data[w]["deps"][dep]
                         to_pos = graph_data[dep]["tree_pos"]
+                        word = graph_data[dep]["word"].lower()
                         mor = graph_data[dep]["mor"]
 
                         if "tree_pos" in graph_data[w]:
                             if "lin=+" in mor:
                                 subgraphs["graph"].append(
-                                    {"to": to_pos, "edge": edge_dep.replace(":", "_"), "dir": "S"})
+                                    {"to": (word.lower(), to_pos), "edge": edge_dep.replace(":", "_"), "dir": "S"})
                             elif "lin=-" in mor:
                                 subgraphs["graph"].append(
-                                    {"to": to_pos, "edge": edge_dep.replace(":", "_"), "dir": "B"})
+                                    {"to": (word.lower(), to_pos), "edge": edge_dep.replace(":", "_"), "dir": "B"})
                             else:
                                 subgraphs["graph"].append(
-                                    {"to": to_pos, "edge": edge_dep.replace(":", "_"), "dir": None})
+                                    {"to": (word.lower(), to_pos), "edge": edge_dep.replace(":", "_"), "dir": None})
 
                     id_to_rules[sentences].append(subgraphs)
                 graph_data = {}

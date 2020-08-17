@@ -3,6 +3,7 @@ import re
 import copy
 import operator
 import argparse
+import converter
 from itertools import chain, combinations, product
 from tqdm import tqdm
 from collections import defaultdict, OrderedDict
@@ -172,7 +173,7 @@ class Grammar():
         deps = graph_data[w]["deps"]
         possibility = 0
         for subset in all_subsets(list(deps.keys())):
-            if len(subset) > 6:
+            if len(subset) > 5:
                 return
             nodes_before = []
             nodes_after = []
@@ -232,6 +233,7 @@ class Grammar():
                     pos_line_key += pos + "|" + edge + "&"
                     lemma_line_key += lemma + "|" + edge + "&"
 
+                nodes.sort(key=lambda x: graph_data[str(x)]["element"])
                 for n in nodes:
                     n = str(n)
                     edge = graph_data[w]["deps"][n]
@@ -239,7 +241,7 @@ class Grammar():
                     lemma = graph_data[n]["element"]
 
                     pos_order_key += pos + "|" + edge + "&"
-                    lemma_order_key += pos + "|" + edge + "&"
+                    lemma_order_key += lemma + "|" + edge + "&"
 
                 pos_to_order[pos_order_key].add(pos_line_key)
                 pos_to_order[lemma_order_key].add(lemma_line_key)
@@ -303,6 +305,8 @@ class Grammar():
                        for subgraph in trained_edges]
         freq_sums = sum(frequencies)
 
+        self.query_rules(rules, grammar_fn)
+
         counter = 1
         for subgraph in trained_edges:
             counter += 1
@@ -325,6 +329,11 @@ class Grammar():
                 grammar_fn)
 
         self.print_start_rule(start_rule_set, grammar_fn)
+
+    def query_rules(self, rules, grammar_fn):
+        # for graph in rules:
+        #     if graph["root"] != "ROOT":
+        return
 
     def remove_bidirection(self, id_to_rules):
         graphs_with_dirs = {}
@@ -529,6 +538,14 @@ def main():
     args = get_args()
     grammar = Grammar()
     grammar.train_subgraphs(args.train_file, args.test_file)
+    rules, _ = converter.extract_rules(args.test_file)
+    graphs, _, id_graphs = converter.convert(args.test_file)
+    _, sentences, _ = converter.convert(args.test_file)
+    conll = converter.get_conll_from_file(args.test_file)
+    id_to_parse = {}
+    stops = []
+    grammar_fn = open('dep_grammar_spec.irtg', 'w')
+    grammar.generate_grammar(rules[0], grammar_fn)
 
 
 if __name__ == "__main__":
