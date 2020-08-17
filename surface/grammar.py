@@ -53,7 +53,7 @@ class Grammar():
 
     def __init__(self):
         super().__init__()
-        self.subgraphs_unordered = defaultdict(set)
+        self.subgraphs_highest = {}
         self.subgraphs = OrderedDict()
 
     def make_default_structure(self, graph_data, word_id):
@@ -165,6 +165,13 @@ class Grammar():
         sorted_dict = OrderedDict(sorted_x)
         # self.add_unseen_rules(sorted_dict, fn_dev)
         self.subgraphs = sorted_dict
+
+        for order_key in pos_to_order:
+            order_set = pos_to_order[order_key]
+            max_key = max(order_set, key=lambda x: order_to_count[x])
+            pos_to_order[order_key] = max_key
+
+        self.subgraphs_highest = pos_to_order
 
     def count_on_graph(self, graph_data, w, pos_to_order, order_to_count):
         deps = graph_data[w]["deps"]
@@ -352,6 +359,7 @@ class Grammar():
                             ">" + query_string
                         lemma_query_string = graph["root"][0] + \
                             ">" + query_string
+
         return
 
     def remove_bidirection(self, id_to_rules):
