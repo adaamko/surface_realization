@@ -172,6 +172,8 @@ class Grammar():
         deps = graph_data[w]["deps"]
         possibility = 0
         for subset in all_subsets(list(deps.keys())):
+            if len(subset) > 6:
+                return
             nodes_before = []
             nodes_after = []
             for dep in subset:
