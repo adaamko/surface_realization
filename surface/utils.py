@@ -1,4 +1,6 @@
 import os
+from itertools import chain, combinations, product
+
 
 def get_parse(fn, conll):
     with open(fn, "r") as f:
@@ -11,7 +13,7 @@ def get_parse(fn, conll):
             conll_parse[i] = conll[w_id.split("_")[1]]
             text_parse.append(conll[w_id.split("_")[1]][1])
         return text_parse, conll_parse
-    
+
 
 def set_parse(fn, graph):
     with open(fn, "w+") as f:
@@ -19,3 +21,7 @@ def set_parse(fn, graph):
         f.write("# interpretation ud: de.up.ling.irtg.algebra.graph.GraphAlgebra\n")
         f.write(graph + "\n")
         f.write("(dummy_0 / dummy_0)\n")
+
+
+def all_subsets(ss):
+    return chain(*map(lambda x: combinations(ss, x), range(0, len(ss)+1)))

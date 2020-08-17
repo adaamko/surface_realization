@@ -7,7 +7,7 @@ import converter
 from itertools import chain, combinations, product
 from tqdm import tqdm
 from collections import defaultdict, OrderedDict
-from memory_profiler import profile
+from utils import all_subsets
 
 ENGLISH_WORD = re.compile("^[a-zA-Z0-9]*$")
 
@@ -127,9 +127,6 @@ class Grammar():
         pos_to_order = defaultdict(set)
         order_to_count = defaultdict(lambda: 1)
 
-        def all_subsets(ss):
-            return chain(*map(lambda x: combinations(ss, x), range(0, len(ss)+1)))
-
         with open(fn_train, "r") as f:
             for i, line in tqdm(enumerate(f)):
                 if line.startswith("#"):
@@ -137,7 +134,7 @@ class Grammar():
                 if line == "\n":
                     for w in graph_data:
                         self.count_on_graph(
-                            graph_data, w, all_subsets, pos_to_order, order_to_count)
+                            graph_data, w, pos_to_order, order_to_count)
 
                     graph_data = {}
                     noun_list = []
@@ -169,7 +166,7 @@ class Grammar():
         # self.add_unseen_rules(sorted_dict, fn_dev)
         self.subgraphs = sorted_dict
 
-    def count_on_graph(self, graph_data, w, all_subsets, pos_to_order, order_to_count):
+    def count_on_graph(self, graph_data, w, pos_to_order, order_to_count):
         deps = graph_data[w]["deps"]
         possibility = 0
         for subset in all_subsets(list(deps.keys())):
@@ -243,10 +240,12 @@ class Grammar():
                     pos_order_key += pos + "|" + edge + "&"
                     lemma_order_key += lemma + "|" + edge + "&"
 
-                pos_to_order[pos_order_key].add(pos_line_key)
-                pos_to_order[lemma_order_key].add(lemma_line_key)
-                order_to_count[pos_line_key] += 1
-                order_to_count[lemma_line_key] += 1
+                pos_to_order[pos_order_key.strip("&")].add(
+                    pos_line_key.strip("&"))
+                pos_to_order[lemma_order_key.strip("&")].add(
+                    lemma_line_key.strip("&"))
+                order_to_count[pos_line_key.strip("&")] += 1
+                order_to_count[lemma_line_key.strip("&")] += 1
 
     def sanitize_word(self, word):
         for pattern, target in REPLACE_MAP.items():
@@ -331,8 +330,28 @@ class Grammar():
         self.print_start_rule(start_rule_set, grammar_fn)
 
     def query_rules(self, rules, grammar_fn):
-        # for graph in rules:
-        #     if graph["root"] != "ROOT":
+        for graph in rules:
+            if graph["root"] != "ROOT":
+                subgraph_nodes = []
+                # subgraph_nodes.append(graph["root"])
+                subgraph_edges = []
+                subgraph_rules = []
+
+                for e in graph["graph"]:
+                    subgraph_nodes.append([e["to"], e["edge"]])
+
+                for subset in all_subsets(subgraph_nodes):
+                    nodes = [node[0] for node in subset]
+                    edges = [node[1] for node in subset]
+                    for combined in product(*list(nodes)):
+                        sorted_nodes_edges = [(x, y) for x, y in sorted(
+                            zip(list(combined), edges), key=lambda pair: pair[0])]
+                        query_string = "&".join(
+                            ["|".join(x) for x in sorted_nodes_edges])
+                        pos_query_string = graph["root"][1] + \
+                            ">" + query_string
+                        lemma_query_string = graph["root"][0] + \
+                            ">" + query_string
         return
 
     def remove_bidirection(self, id_to_rules):

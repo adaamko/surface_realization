@@ -161,10 +161,11 @@ def extract_rules(dev):
                             to_pos = graph_data[dep]["tree_pos"]
                             word = graph_data[dep]["word"].lower()
                             subgraphs["graph"].append(
-                                    {"to": (word.lower(), to_pos), "edge": "root", "dir": None})
+                                {"to": (word.lower(), to_pos), "edge": "root", "dir": None})
                         continue
 
-                    subgraphs["root"] = graph_data[w]["tree_pos"]
+                    subgraphs["root"] = (
+                        graph_data[dep]["word"].lower(), graph_data[w]["tree_pos"])
 
                     for dep in graph_data[w]["deps"]:
                         edge_dep = graph_data[w]["deps"][dep]
