@@ -208,7 +208,7 @@ def extract_rules(dev):
 
                 make_default_structure(graph_data, word_id)
                 graph_data[word_id]["word"] = lemma
-                graph_data[word_id]["tree_pos"] = sanitize_word(ud_pos)
+                graph_data[word_id]["tree_pos"] = sanitize_word(tree_pos)
                 graph_data[word_id]["mor"] = mor
 
                 make_default_structure(graph_data, head)
