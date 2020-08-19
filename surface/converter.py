@@ -79,8 +79,8 @@ def build_dictionaries(filepaths):
                 if line != "\n":
                     fields = line.split("\t")
                     word_id = fields[0]
-                    lemma = fields[1]
-                    word = fields[2]
+                    word = fields[1]
+                    lemma = fields[2]
                     tree_pos = fields[3]
                     ud_pos = fields[4]
                     mor = fields[5]
@@ -100,7 +100,7 @@ def build_dictionaries(filepaths):
     return word_to_id, id_to_word
 
 
-def get_conll_from_file(fn):
+def get_conll_from_file(fn, word_to_id):
     id_to_conll = defaultdict(dict)
 
     sentences = 0
@@ -113,8 +113,8 @@ def get_conll_from_file(fn):
             if line != "\n":
                 fields = line.split("\t")
                 word_id = fields[0]
-                lemma = fields[1]
-                word = fields[2]
+                word = fields[1]
+                lemma = fields[2]
                 tree_pos = fields[3]
                 ud_pos = fields[4]
                 mor = fields[5]
@@ -124,7 +124,7 @@ def get_conll_from_file(fn):
                 space_after = fields[9]
 
                 id_to_conll[sentences][word_id] = [
-                    lemma, word, tree_pos, ud_pos,  mor, head, ud_edge, comp_edge, space_after]
+                    lemma, word, tree_pos, ud_pos,  mor, head, ud_edge, comp_edge, space_after, word_to_id[lemma.lower()]]
 
     return id_to_conll
 
@@ -188,7 +188,7 @@ def to_tokenized_output(result_dir, output_dir):
                 f.write("\n")
 
 
-def extract_rules(dev):
+def extract_rules(dev, word_to_id):
     graph_data = {}
     noun_list = []
     id_to_rules = defaultdict(list)
@@ -244,8 +244,8 @@ def extract_rules(dev):
             if line != "\n":
                 fields = line.split("\t")
                 word_id = fields[0]
-                lemma = fields[1]
-                word = fields[2]
+                word = fields[1]
+                lemma = fields[2]
                 tree_pos = fields[3]
                 ud_pos = fields[4]
                 mor = fields[5]
@@ -255,7 +255,7 @@ def extract_rules(dev):
                 space_after = fields[9]
 
                 make_default_structure(graph_data, word_id)
-                graph_data[word_id]["word"] = lemma
+                graph_data[word_id]["word"] = word_to_id[lemma.lower()]
                 graph_data[word_id]["tree_pos"] = sanitize_word(tree_pos)
                 graph_data[word_id]["mor"] = mor
 

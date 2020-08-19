@@ -121,7 +121,7 @@ class Grammar():
                     self.make_default_structure(graph_data, head)
                     graph_data[head]["deps"][word_id] = ud_edge
 
-    def train_subgraphs(self, fn_train, fn_dev):
+    def train_subgraphs(self, fn_train, fn_dev, word_to_id):
         graph_data = {}
         noun_list = []
         pos_to_order = defaultdict(set)
@@ -152,7 +152,7 @@ class Grammar():
 
                     self.make_default_structure(graph_data, word_id)
                     graph_data[word_id]["word"] = word
-                    graph_data[word_id]["lemma"] = lemma
+                    graph_data[word_id]["lemma"] = word_to_id[lemma.lower()]
                     graph_data[word_id]["tree_pos"] = self.sanitize_word(
                         tree_pos)
                     graph_data[word_id]["mor"] = mor
@@ -264,12 +264,21 @@ class Grammar():
         return word
 
     def generate_terminal_ids(self, conll, grammar_fn):
-        TEMPLATE = (
-            '{0} -> {0}_{1}\n[string] {0}_{1}\n[ud] "({0}_{1}<root> / {0}_{1})"\n')
+        TEMPLATE = '{0} -> {0}_{1}\n[string] {0}_{1}\n[ud] "({0}_{1}<root> / {0}_{1})"\n'
+
+        POS_TEMPLATE = '{0} -> pos_to_word_{1}({2}) [0.99]\n[string] ?1\n[ud] ?1\n'
+
+        rules = set()
 
         for w_id in conll:
-            print(TEMPLATE.format(self.sanitize_word(
-                conll[w_id][3]), w_id), file=grammar_fn)
+            template = TEMPLATE.format(conll[w_id][-1], w_id)
+            pos_template = POS_TEMPLATE.format(
+                conll[w_id][2], w_id, conll[w_id][-1])
+            rules.add(template)
+            rules.add(pos_template)
+
+        for rule in rules:
+            print(rule, file=grammar_fn)
 
     def generate_terminals(self, fn, grammar_fn):
         TEMPLATE = (
@@ -507,16 +516,18 @@ def get_args():
 def main():
     args = get_args()
     grammar = Grammar()
-    grammar.train_subgraphs(args.train_file, args.test_file)
-    rules, _ = converter.extract_rules(args.test_file)
+    word_to_id, id_to_word = converter.build_dictionaries(
+        [args.train_file, args.test_file])
+    grammar.train_subgraphs(args.train_file, args.test_file, word_to_id)
+    rules, _ = converter.extract_rules(args.test_file, word_to_id)
     graphs, _, id_graphs = converter.convert(args.test_file)
     _, sentences, _ = converter.convert(args.test_file)
-    conll = converter.get_conll_from_file(args.test_file)
-    word_to_id, id_to_word = converter.build_dictionaries([args.train_file, args.test_file])
+    conll = converter.get_conll_from_file(args.test_file, word_to_id)
     id_to_parse = {}
     stops = []
     grammar_fn = open('dep_grammar_spec.irtg', 'w')
     grammar.generate_grammar(rules[0], grammar_fn)
+    grammar.generate_terminal_ids(conll[0], grammar_fn)
 
 
 if __name__ == "__main__":
