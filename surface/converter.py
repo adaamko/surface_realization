@@ -162,6 +162,7 @@ def extract_rules(dev):
                             word = graph_data[dep]["word"].lower()
                             subgraphs["graph"].append(
                                 {"to": (word.lower(), to_pos), "edge": "root", "dir": None})
+                        id_to_rules[sentences].append(subgraphs)
                         continue
 
                     subgraphs["root"] = (
