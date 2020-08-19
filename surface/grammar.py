@@ -512,6 +512,7 @@ def main():
     graphs, _, id_graphs = converter.convert(args.test_file)
     _, sentences, _ = converter.convert(args.test_file)
     conll = converter.get_conll_from_file(args.test_file)
+    word_to_id, id_to_word = converter.build_dictionaries([args.train_file, args.test_file])
     id_to_parse = {}
     stops = []
     grammar_fn = open('dep_grammar_spec.irtg', 'w')

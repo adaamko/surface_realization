@@ -53,6 +53,53 @@ TEMPLATE = (
 )
 
 
+def build_dictionaries(filepaths):
+    word_to_id = {}
+    id_to_word = {}
+    graph_data = {}
+
+    word_count = 1
+    for filepath in filepaths:
+        with open(filepath, "r") as f:
+            for i, line in enumerate(f):
+                if line == "\n":
+                    words = []
+                    for w in graph_data:
+                        word = graph_data[w]["word"].lower()
+                        if word not in word_to_id:
+                            word_unique = "WORD" + str(word_count)
+                            word_to_id[word] = word_unique
+                            id_to_word[word_unique] = word
+                            word_count += 1
+
+                    graph_data = {}
+                    continue
+                if line.startswith("#"):
+                    continue
+                if line != "\n":
+                    fields = line.split("\t")
+                    word_id = fields[0]
+                    lemma = fields[1]
+                    word = fields[2]
+                    tree_pos = fields[3]
+                    ud_pos = fields[4]
+                    mor = fields[5]
+                    head = fields[6]
+                    ud_edge = fields[7]
+                    comp_edge = fields[8]
+                    space_after = fields[9]
+
+                    make_default_structure(graph_data, word_id)
+                    graph_data[word_id]["word"] = lemma
+                    graph_data[word_id]["tree_pos"] = sanitize_word(tree_pos)
+                    graph_data[word_id]["mor"] = mor
+
+                    make_default_structure(graph_data, head)
+                    graph_data[head]["deps"][word_id] = ud_edge
+
+    return word_to_id, id_to_word
+
+
 def get_conll_from_file(fn):
     id_to_conll = defaultdict(dict)
 
