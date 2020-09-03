@@ -12,8 +12,6 @@ from surface.utils import all_subsets
 # from utils import all_subsets
 # import converter
 
-ENGLISH_WORD = re.compile("^[a-zA-Z0-9]*$")
-
 REPLACE_MAP = {
     ":": "COLON",
     ",": "COMMA",
@@ -100,7 +98,8 @@ class Grammar():
                     graph_data[word_id]["lemma"] = word_to_id[lemma.lower()]
                     graph_data[word_id]["tree_pos"] = self.sanitize_word(
                         tree_pos)
-                    graph_data[word_id]["mor"] = int(mor.split("|")[-1].split("original_id=")[1])
+                    graph_data[word_id]["mor"] = int(
+                        mor.split("|")[-1].split("original_id=")[1])
 
                     self.make_default_structure(graph_data, head)
                     graph_data[head]["deps"][word_id] = ud_edge
@@ -133,9 +132,12 @@ class Grammar():
                     elif int(graph_data[dep]["mor"]) > int(graph_data[w]["mor"]):
                         nodes_after.append(int(dep))
 
-            s_nodes_before = sorted(nodes_before, key=lambda x: int(graph_data[str(x)]["mor"]))
-            s_nodes_after = sorted(nodes_after, key=lambda x: int(graph_data[str(x)]["mor"]))
-            nodes = sorted(s_nodes_before + s_nodes_after, key=lambda x: int(graph_data[str(x)]["mor"]))
+            s_nodes_before = sorted(
+                nodes_before, key=lambda x: int(graph_data[str(x)]["mor"]))
+            s_nodes_after = sorted(
+                nodes_after, key=lambda x: int(graph_data[str(x)]["mor"]))
+            nodes = sorted(s_nodes_before + s_nodes_after,
+                           key=lambda x: int(graph_data[str(x)]["mor"]))
 
             # From the IDS, get (lemma, pos) pairs, so after the descartes product of the list can be calculated
             nodes_paired = [[graph_data[str(node)]["lemma"].lower(
@@ -225,31 +227,6 @@ class Grammar():
         for rule in rules:
             print(rule, file=grammar_fn)
 
-    def generate_terminals(self, fn, grammar_fn):
-        TEMPLATE = (
-            '{0} -> {1}_{2}_{0}\n[string] {1}\n[ud] "({1}_{2}<root> / {1}_{2})"\n')
-
-        with open(fn) as train_file:
-            terminals = set()
-            words = defaultdict(int)
-            for line in train_file:
-                if line.startswith("#"):
-                    continue
-                if line.strip():
-                    fields = line.split("\t")
-                    word = self.sanitize_word(fields[1])
-                    if ENGLISH_WORD.match(word):
-                        terminals.add(
-                            word + "_" + str(words[word]) + "_" + fields[3])
-                        words[word] += 1
-                elif not line.strip():
-                    words = defaultdict(int)
-
-        for terminal in terminals:
-            t_field = terminal.split("_")
-            print(TEMPLATE.format(t_field[2],
-                                  t_field[0], t_field[1]), file=grammar_fn)
-
     def generate_grammar(self, rules, grammar_fn, binary=False):
         start_rule_set = set()
         print("interpretation string: de.up.ling.irtg.algebra.StringAlgebra",
@@ -314,7 +291,7 @@ class Grammar():
                 for subset in all_subsets(subgraph_nodes):
                     if binary and len(subset) > 1:
                         return
-                    if not binary  and len(subset) > 5:
+                    if not binary and len(subset) > 5:
                         return
                     nodes = [node[0] for node in subset]
                     edges = [node[1] for node in subset]
@@ -462,7 +439,8 @@ class Grammar():
 
     def print_start_rule(self, s, grammar_fn):
         for i in s:
-            print("S! -> start_b_{}({}) [1.0]".format(i.upper(), i.upper()), file=grammar_fn)
+            print(
+                "S! -> start_b_{}({}) [1.0]".format(i.upper(), i.upper()), file=grammar_fn)
             print("[string] ?1", file=grammar_fn)
             print("[ud] ?1", file=grammar_fn)
             print(file=grammar_fn)
@@ -480,19 +458,19 @@ def get_args():
 
 def main():
     args = get_args()
-    grammar = Grammar()
-    word_to_id, id_to_word = converter.build_dictionaries(
-        [args.train_file, args.test_file])
-    grammar.train_subgraphs(args.train_file, args.test_file, word_to_id)
-    rules, _ = converter.extract_rules(args.test_file, word_to_id)
-    graphs, _, id_graphs = converter.convert(args.test_file, word_to_id)
-    _, sentences, _ = converter.convert(args.test_file, word_to_id)
-    conll = converter.get_conll_from_file(args.test_file, word_to_id)
-    id_to_parse = {}
-    stops = []
-    grammar_fn = open('dep_grammar_spec.irtg', 'w')
-    grammar.generate_grammar(rules[0], grammar_fn)
-    grammar.generate_terminal_ids(conll[0], grammar_fn)
+    # grammar = Grammar()
+    # word_to_id, id_to_word = converter.build_dictionaries(
+    #     [args.train_file, args.test_file])
+    # grammar.train_subgraphs(args.train_file, args.test_file, word_to_id)
+    # rules, _ = converter.extract_rules(args.test_file, word_to_id)
+    # graphs, _, id_graphs = converter.convert(args.test_file, word_to_id)
+    # _, sentences, _ = converter.convert(args.test_file, word_to_id)
+    # conll = converter.get_conll_from_file(args.test_file, word_to_id)
+    # id_to_parse = {}
+    # stops = []
+    # grammar_fn = open('dep_grammar_spec.irtg', 'w')
+    # grammar.generate_grammar(rules[0], grammar_fn)
+    # grammar.generate_terminal_ids(conll[0], grammar_fn)
 
 
 if __name__ == "__main__":
