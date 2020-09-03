@@ -11,7 +11,7 @@ def get_parse(fn, conll):
         text_parse = []
         for i, w_id in enumerate(text):
             conll_parse[i] = conll[w_id.split("_")[1]]
-            text_parse.append(conll[w_id.split("_")[1]][1])
+            text_parse.append(conll[w_id.split("_")[1]][0])
         return text_parse, conll_parse
 
 

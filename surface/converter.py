@@ -79,8 +79,8 @@ def build_dictionaries(filepaths):
                 if line != "\n":
                     fields = line.split("\t")
                     word_id = fields[0]
-                    word = fields[1]
-                    lemma = fields[2]
+                    word = fields[2]
+                    lemma = fields[1]
                     tree_pos = fields[3]
                     ud_pos = fields[4]
                     mor = fields[5]
@@ -113,8 +113,8 @@ def get_conll_from_file(fn, word_to_id):
             if line != "\n":
                 fields = line.split("\t")
                 word_id = fields[0]
-                word = fields[1]
-                lemma = fields[2]
+                word = fields[2]
+                lemma = fields[1]
                 tree_pos = fields[3]
                 ud_pos = fields[4]
                 mor = fields[5]
@@ -244,8 +244,8 @@ def extract_rules(dev, word_to_id):
             if line != "\n":
                 fields = line.split("\t")
                 word_id = fields[0]
-                word = fields[1]
-                lemma = fields[2]
+                word = fields[2]
+                lemma = fields[1]
                 tree_pos = fields[3]
                 ud_pos = fields[4]
                 mor = fields[5]
@@ -268,13 +268,13 @@ def print_output(graph_data, graph_root):
     print(make_graph_string(graph_data, graph_root))
 
 
-def make_id_graph(graph_data, word_id):
+def make_id_graph(graph_data, word_id, word_to_id):
     graph_string = "({1}_{0} / {1}_{0}".format(str(word_id),
-                                               graph_data[word_id]["ud_pos"])
+                                               word_to_id[graph_data[word_id]["word"]])
     for other_id in graph_data[word_id]["deps"]:
         edge = graph_data[word_id]["deps"][other_id]
         graph_string += ' :{0} '.format(edge.replace(':', '_'))
-        graph_string += make_id_graph(graph_data, other_id)
+        graph_string += make_id_graph(graph_data, other_id, word_to_id)
     graph_string += ")"
     return graph_string
 
@@ -307,7 +307,7 @@ def sanitize_pos(pos):
         return pos
 
 
-def convert(conll_file):
+def convert(conll_file, word_to_id):
     sentences = []
     graphs = []
     words = defaultdict(int)
@@ -321,7 +321,7 @@ def convert(conll_file):
         for line in conll_file:
             if line == "\n":
                 graph = make_graph_string(graph_data, graph_root)
-                id_graph = make_id_graph(graph_data, graph_root)
+                id_graph = make_id_graph(graph_data, graph_root, word_to_id)
                 graphs.append(graph)
                 id_to_graph[sen_id] = graph
                 id_to_idgraph[sen_id] = id_graph
@@ -341,8 +341,7 @@ def convert(conll_file):
             fields = line.split("\t")
             dep_word_id = fields[0]
 
-            dep_word = sanitize_word(fields[1])
-            dep_word_unique = dep_word + "_" + str(words[dep_word])
+            dep_word = fields[1].lower()
             words[dep_word] += 1
 
             tree_pos = sanitize_word(sanitize_pos(fields[3]))
@@ -351,7 +350,7 @@ def convert(conll_file):
             ud_edge = fields[7]
 
             make_default_structure(graph_data, dep_word_id)
-            graph_data[dep_word_id]["word"] = dep_word_unique
+            graph_data[dep_word_id]["word"] = dep_word
             graph_data[dep_word_id]["tree_pos"] = tree_pos
             graph_data[dep_word_id]["ud_pos"] = sanitize_word(ud_pos)
 

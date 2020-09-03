@@ -3,11 +3,14 @@ import re
 import copy
 import operator
 import argparse
-import converter
 from itertools import chain, combinations, product
 from tqdm import tqdm
 from collections import defaultdict, OrderedDict
-from utils import all_subsets
+from surface.utils import all_subsets
+
+# Uncomment if run from command line
+# from utils import all_subsets
+# import converter
 
 ENGLISH_WORD = re.compile("^[a-zA-Z0-9]*$")
 
@@ -63,64 +66,6 @@ class Grammar():
                 "deps": {},
             }
 
-    def add_unseen_rules(self, grammar, fn_dev):
-        graph_data = {}
-        noun_list = []
-        with open(fn_dev, "r") as f:
-            for i, line in enumerate(f):
-                if line == "\n":
-                    for w in graph_data:
-                        for dep in graph_data[w]["deps"]:
-                            edge_dep = graph_data[w]["deps"][dep]
-                            to_pos = graph_data[dep]["tree_pos"]
-                            mor = graph_data[dep]["mor"]
-
-                            if "tree_pos" in graph_data[w]:
-                                line_key_before = graph_data[w]["tree_pos"] + \
-                                    ">" + to_pos + "|" + edge_dep + "&>"
-                                line_key_after = graph_data[w]["tree_pos"] + \
-                                    ">>" + to_pos + "|" + edge_dep + "&"
-
-                                if "lin=+" in mor and line_key_after in grammar:
-                                    grammar[line_key_after] += 1
-                                elif "lin=-" in mor and line_key_before in grammar:
-                                    grammar[line_key_before] += 1
-
-                                if line_key_before not in grammar and line_key_after not in grammar:
-                                    if "lin=+" in mor:
-                                        grammar[line_key_after] = 1
-                                    elif "lin=-" in mor:
-                                        grammar[line_key_before] = 1
-                                    else:
-                                        grammar[line_key_before] = 1
-                                        grammar[line_key_after] = 1
-                                elif line_key_before not in grammar:
-                                    grammar[line_key_before] = 1
-                                elif line_key_after not in grammar:
-                                    grammar[line_key_after] = 1
-
-                    graph_data = {}
-                    noun_list = []
-                    continue
-                if line != "\n":
-                    fields = line.split("\t")
-                    word_id = fields[0]
-                    word = fields[1]
-                    tree_pos = fields[3]
-                    ud_pos = fields[4]
-                    mor = fields[5]
-                    head = fields[6]
-                    ud_edge = fields[7]
-
-                    self.make_default_structure(graph_data, word_id)
-                    graph_data[word_id]["word"] = word
-                    graph_data[word_id]["tree_pos"] = self.sanitize_word(
-                        ud_pos)
-                    graph_data[word_id]["mor"] = mor
-
-                    self.make_default_structure(graph_data, head)
-                    graph_data[head]["deps"][word_id] = ud_edge
-
     def train_subgraphs(self, fn_train, fn_dev, word_to_id):
         graph_data = {}
         noun_list = []
@@ -142,8 +87,8 @@ class Grammar():
                 if line != "\n":
                     fields = line.split("\t")
                     word_id = fields[0]
-                    word = fields[1]
-                    lemma = fields[2]
+                    word = fields[2]
+                    lemma = fields[1]
                     tree_pos = fields[3]
                     ud_pos = fields[4]
                     mor = fields[5]
@@ -155,7 +100,7 @@ class Grammar():
                     graph_data[word_id]["lemma"] = word_to_id[lemma.lower()]
                     graph_data[word_id]["tree_pos"] = self.sanitize_word(
                         tree_pos)
-                    graph_data[word_id]["mor"] = mor
+                    graph_data[word_id]["mor"] = int(mor.split("|")[-1].split("original_id=")[1])
 
                     self.make_default_structure(graph_data, head)
                     graph_data[head]["deps"][word_id] = ud_edge
@@ -163,12 +108,12 @@ class Grammar():
         sorted_x = sorted(order_to_count.items(),
                           key=operator.itemgetter(1), reverse=True)
         sorted_dict = OrderedDict(sorted_x)
-        # self.add_unseen_rules(sorted_dict, fn_dev)
         self.subgraphs = sorted_dict
 
         for order_key in pos_to_order:
             order_set = pos_to_order[order_key]
-            max_key = max(order_set, key=lambda x: order_to_count[x])
+            max_key = sorted(
+                list(order_set), key=lambda x: order_to_count[x], reverse=True)
             pos_to_order[order_key] = max_key
 
         self.subgraphs_highest = pos_to_order
@@ -183,14 +128,14 @@ class Grammar():
             nodes_after = []
             for dep in subset:
                 if "tree_pos" in graph_data[w]:
-                    if int(dep) < int(w):
+                    if int(graph_data[dep]["mor"]) < int(graph_data[w]["mor"]):
                         nodes_before.append(int(dep))
-                    elif int(dep) > int(w):
+                    elif int(graph_data[dep]["mor"]) > int(graph_data[w]["mor"]):
                         nodes_after.append(int(dep))
 
-            s_nodes_before = sorted(nodes_before)
-            s_nodes_after = sorted(nodes_after)
-            nodes = sorted(s_nodes_before + s_nodes_after)
+            s_nodes_before = sorted(nodes_before, key=lambda x: int(graph_data[str(x)]["mor"]))
+            s_nodes_after = sorted(nodes_after, key=lambda x: int(graph_data[str(x)]["mor"]))
+            nodes = sorted(s_nodes_before + s_nodes_after, key=lambda x: int(graph_data[str(x)]["mor"]))
 
             # From the IDS, get (lemma, pos) pairs, so after the descartes product of the list can be calculated
             nodes_paired = [[graph_data[str(node)]["lemma"].lower(
@@ -219,7 +164,7 @@ class Grammar():
 
                 for n in s_nodes_before:
                     n = str(n)
-                    edge = graph_data[w]["deps"][n]
+                    edge = graph_data[w]["deps"][n].replace(":", "_")
                     pos = graph_data[n]["element"]
                     lemma = graph_data[n]["element"]
 
@@ -230,7 +175,7 @@ class Grammar():
 
                 for n in s_nodes_after:
                     n = str(n)
-                    edge = graph_data[w]["deps"][n]
+                    edge = graph_data[w]["deps"][n].replace(":", "_")
                     pos = graph_data[n]["element"]
                     lemma = graph_data[n]["element"]
 
@@ -240,7 +185,7 @@ class Grammar():
                 nodes.sort(key=lambda x: graph_data[str(x)]["element"])
                 for n in nodes:
                     n = str(n)
-                    edge = graph_data[w]["deps"][n]
+                    edge = graph_data[w]["deps"][n].replace(":", "_")
                     pos = graph_data[n]["element"]
                     lemma = graph_data[n]["element"]
 
@@ -316,26 +261,60 @@ class Grammar():
 
         trained_edges = self.subgraphs
 
-        # frequencies = [int(trained_edges[subgraph])
-        #                for subgraph in trained_edges]
-        # freq_sums = sum(frequencies)
+        self.query_rules(rules, grammar_fn, binary)
 
-        self.query_rules(rules, grammar_fn)
+    def query_order(self, constraints, key):
+        if not constraints:
+            return self.subgraphs_highest[key][0]
+        else:
+            for subgraph in self.subgraphs_highest[key]:
+                fields = subgraph.split(">")
+                head = fields[0]
+                dep_before = fields[1].replace(":", "_").strip("&")
+                dep_after = fields[2].replace(":", "_").strip("&")
+                before_nodes = []
+                after_nodes = []
 
-    def query_rules(self, rules, grammar_fn):
+                if dep_before:
+                    for n in dep_before.split("&"):
+                        n = n.split("|")
+                        before_nodes.append(n[0])
+
+                if dep_after:
+                    for n in dep_after.split("&"):
+                        n = n.split("|")
+                        after_nodes.append(n[0])
+                subgraph_ok = True
+                for constrain in constraints:
+                    if constrain["dir"] == "S" and (constrain["to"][0] in before_nodes or constrain["to"][1] in before_nodes):
+                        subgraph_ok = False
+                        break
+                    if constrain["dir"] == "B" and (constrain["to"][0] in after_nodes or constrain["to"][1] in after_nodes):
+                        subgraph_ok = False
+                        break
+
+                if subgraph_ok:
+                    return subgraph
+
+            return self.subgraphs_highest[key][0]
+
+    def query_rules(self, rules, grammar_fn, binary):
         counter = 1
         for graph in rules:
             if graph["root"] != "ROOT":
                 subgraph_nodes = []
                 # subgraph_nodes.append(graph["root"])
                 subgraph_edges = []
-                subgraph_rules = []
+                constraints = []
 
                 for e in graph["graph"]:
                     subgraph_nodes.append([e["to"], e["edge"]])
-
+                    if e["dir"]:
+                        constraints.append(e)
                 for subset in all_subsets(subgraph_nodes):
-                    if len(subset) > 5:
+                    if binary and len(subset) > 1:
+                        return
+                    if not binary  and len(subset) > 5:
                         return
                     nodes = [node[0] for node in subset]
                     edges = [node[1] for node in subset]
@@ -350,7 +329,8 @@ class Grammar():
                             ">" + query_string
 
                         if pos_query_string in self.subgraphs_highest:
-                            subgraph = self.subgraphs_highest[pos_query_string]
+                            subgraph = self.query_order(
+                                constraints, pos_query_string)
                             fields = subgraph.split(">")
                             head = fields[0]
                             dep_before = fields[1].replace(":", "_").strip("&")
@@ -364,7 +344,8 @@ class Grammar():
                             counter += 1
 
                         if lemma_query_string in self.subgraphs_highest:
-                            subgraph = self.subgraphs_highest[lemma_query_string]
+                            subgraph = self.query_order(
+                                constraints, lemma_query_string)
                             fields = subgraph.split(">")
                             head = fields[0]
                             dep_before = fields[1].replace(":", "_").strip("&")
@@ -383,29 +364,13 @@ class Grammar():
                         start_rule_set.add(element)
                 self.print_start_rule(start_rule_set, grammar_fn)
 
-    def remove_bidirection(self, id_to_rules):
-        graphs_with_dirs = {}
-        id_to_direction = {}
-
-        for ind in id_to_rules:
-            for i, graph in enumerate(id_to_rules[ind]):
-                dict_key = tuple(sorted(graph.items()))[1:]
-                if dict_key not in graphs_with_dirs:
-                    graphs_with_dirs[dict_key] = (ind, i)
-                    id_to_direction[(ind, i)] = graph["dir"]
-                else:
-                    graph_id = graphs_with_dirs[dict_key]
-                    if id_to_direction[graph_id] != graph["dir"]:
-                        id_to_rules[ind][i]["dir"] = None
-                        id_to_rules[graph_id[0]][graph_id[1]]["dir"] = None
-
     def print_rules(self,
                     h,
                     d_before,
                     d_after,
                     counter,
                     grammar_fn):
-        rewrite_rule = h + " -> rule_" + str(counter) + "(" + h + ","
+        rewrite_rule = h.upper() + " -> rule_" + str(counter) + "(" + h.upper() + ","
         if not d_before and not d_after:
             return
 
@@ -417,14 +382,14 @@ class Grammar():
         if d_before:
             for n in d_before.split("&"):
                 n = n.split("|")
-                rewrite_rule += n[0] + ","
+                rewrite_rule += n[0].upper() + ","
                 before_nodes.append(n[0])
                 before_edges.append(n[1])
 
         if d_after:
             for n in d_after.split("&"):
                 n = n.split("|")
-                rewrite_rule += n[0] + ","
+                rewrite_rule += n[0].upper() + ","
                 after_nodes.append(n[0])
                 after_edges.append(n[1])
 
@@ -497,7 +462,7 @@ class Grammar():
 
     def print_start_rule(self, s, grammar_fn):
         for i in s:
-            print("S! -> start_b_{}({}) [1.0]".format(i, i), file=grammar_fn)
+            print("S! -> start_b_{}({}) [1.0]".format(i.upper(), i.upper()), file=grammar_fn)
             print("[string] ?1", file=grammar_fn)
             print("[ud] ?1", file=grammar_fn)
             print(file=grammar_fn)
@@ -520,8 +485,8 @@ def main():
         [args.train_file, args.test_file])
     grammar.train_subgraphs(args.train_file, args.test_file, word_to_id)
     rules, _ = converter.extract_rules(args.test_file, word_to_id)
-    graphs, _, id_graphs = converter.convert(args.test_file)
-    _, sentences, _ = converter.convert(args.test_file)
+    graphs, _, id_graphs = converter.convert(args.test_file, word_to_id)
+    _, sentences, _ = converter.convert(args.test_file, word_to_id)
     conll = converter.get_conll_from_file(args.test_file, word_to_id)
     id_to_parse = {}
     stops = []
