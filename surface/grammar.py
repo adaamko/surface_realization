@@ -290,9 +290,9 @@ class Grammar():
                         constraints.append(e)
                 for subset in all_subsets(subgraph_nodes):
                     if binary and len(subset) > 1:
-                        return
+                        break
                     if not binary and len(subset) > 5:
-                        return
+                        break
                     nodes = [node[0] for node in subset]
                     edges = [node[1] for node in subset]
                     for combined in product(*list(nodes)):
@@ -469,8 +469,8 @@ def main():
     # id_to_parse = {}
     # stops = []
     # grammar_fn = open('dep_grammar_spec.irtg', 'w')
-    # grammar.generate_grammar(rules[0], grammar_fn)
-    # grammar.generate_terminal_ids(conll[0], grammar_fn)
+    # grammar.generate_grammar(rules[2], grammar_fn)
+    # grammar.generate_terminal_ids(conll[2], grammar_fn)
 
 
 if __name__ == "__main__":
