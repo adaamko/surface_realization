@@ -64,7 +64,7 @@ class Grammar():
                 "deps": {},
             }
 
-    def train_subgraphs(self, fn_train, fn_dev, word_to_id):
+    def train_subgraphs(self, fn_train, word_to_id):
         graph_data = {}
         noun_list = []
         pos_to_order = defaultdict(set)
