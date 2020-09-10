@@ -111,7 +111,7 @@ def get_conll_from_file(fn, word_to_id):
             if line.startswith("#"):
                 continue
             if line != "\n":
-                fields = line.split("\t")
+                fields = line.strip().split("\t")
                 word_id = fields[0]
                 word = fields[2]
                 lemma = fields[1]
