@@ -100,35 +100,6 @@ def build_dictionaries(filepaths):
     return word_to_id, id_to_word
 
 
-def get_conll_from_file(fn, word_to_id):
-    id_to_conll = defaultdict(dict)
-
-    sentences = 0
-    with open(fn, "r") as f:
-        for line in f:
-            if line == "\n":
-                sentences += 1
-            if line.startswith("#"):
-                continue
-            if line != "\n":
-                fields = line.strip().split("\t")
-                word_id = fields[0]
-                word = fields[2]
-                lemma = fields[1]
-                tree_pos = fields[3]
-                ud_pos = fields[4]
-                mor = fields[5]
-                head = fields[6]
-                ud_edge = fields[7]
-                comp_edge = fields[8]
-                space_after = fields[9]
-
-                id_to_conll[sentences][word_id] = [
-                    lemma, word, tree_pos, ud_pos,  mor, head, ud_edge, comp_edge, space_after, word_to_id[lemma.lower()]]
-
-    return id_to_conll
-
-
 def sanitize_word(word):
     for pattern, target in REPLACE_MAP.items():
         word = word.replace(pattern, target)

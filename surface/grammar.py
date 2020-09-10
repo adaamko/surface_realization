@@ -215,14 +215,14 @@ class Grammar():
 
         POS_TEMPLATE = '{0} -> pos_to_word_{1}({2}) [0.99]\n[string] ?1\n[ud] ?1\n'
 
-        rules = set()
+        rules = []
 
-        for w_id in conll:
-            template = TEMPLATE.format(conll[w_id][-1], w_id)
+        for tok in conll:
+            template = TEMPLATE.format(tok.word_id, tok.id)
             pos_template = POS_TEMPLATE.format(
-                conll[w_id][2], w_id, conll[w_id][-1])
-            rules.add(template)
-            rules.add(pos_template)
+                tok.pos, tok.id, tok.word_id)
+            rules.append(template)
+            rules.append(pos_template)
 
         for rule in rules:
             print(rule, file=grammar_fn)
@@ -275,6 +275,18 @@ class Grammar():
 
             return self.subgraphs_highest[key][0]
 
+    def print_subgraph_rules(self, subgraph, counter, grammar_fn):
+        fields = subgraph.split(">")
+        head = fields[0]
+        dep_before = fields[1].replace(":", "_").strip("&")
+        dep_after = fields[2].replace(":", "_").strip("&")
+        self.print_rules(
+            head,
+            dep_before,
+            dep_after,
+            counter,
+            grammar_fn)
+
     def query_rules(self, rules, grammar_fn, binary):
         counter = 1
         for graph in rules:
@@ -308,31 +320,15 @@ class Grammar():
                         if pos_query_string in self.subgraphs_highest:
                             subgraph = self.query_order(
                                 constraints, pos_query_string)
-                            fields = subgraph.split(">")
-                            head = fields[0]
-                            dep_before = fields[1].replace(":", "_").strip("&")
-                            dep_after = fields[2].replace(":", "_").strip("&")
-                            self.print_rules(
-                                head,
-                                dep_before,
-                                dep_after,
-                                counter,
-                                grammar_fn)
+                            self.print_subgraph_rules(
+                                subgraph, counter, grammar_fn)
                             counter += 1
 
                         if lemma_query_string in self.subgraphs_highest:
                             subgraph = self.query_order(
                                 constraints, lemma_query_string)
-                            fields = subgraph.split(">")
-                            head = fields[0]
-                            dep_before = fields[1].replace(":", "_").strip("&")
-                            dep_after = fields[2].replace(":", "_").strip("&")
-                            self.print_rules(
-                                head,
-                                dep_before,
-                                dep_after,
-                                counter,
-                                grammar_fn)
+                            self.print_subgraph_rules(
+                                subgraph, counter, grammar_fn)
                             counter += 1
             else:
                 start_rule_set = set()
