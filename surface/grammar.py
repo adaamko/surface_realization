@@ -303,8 +303,8 @@ class Grammar():
                 for subset in all_subsets(subgraph_nodes):
                     if binary and len(subset) > 1:
                         break
-                    if not binary and len(subset) > 5:
-                        break
+                    #if not binary and len(subset) > 5:
+                    #    break
                     nodes = [node[0] for node in subset]
                     edges = [node[1] for node in subset]
                     for combined in product(*list(nodes)):
@@ -322,6 +322,15 @@ class Grammar():
                                 constraints, pos_query_string)
                             self.print_subgraph_rules(
                                 subgraph, counter, grammar_fn)
+                            counter += 1
+                        elif len(subset) == len(subgraph_nodes) and 'word' not in query_string:
+                        # elif len(subset) == 1 and 'word' not in query_string:
+                            head = graph["root"][1]
+                            dep_before = query_string
+                            dep_after = ""
+                            self.print_rules(
+                                head, dep_before, dep_after, 9000 + counter,
+                                grammar_fn)
                             counter += 1
 
                         if lemma_query_string in self.subgraphs_highest:
@@ -346,7 +355,7 @@ class Grammar():
         rewrite_rule = h.upper() + " -> rule_" + str(counter) + "(" + h.upper() + ","
         if not d_before and not d_after:
             return
-
+        # print('h, d_b, d_a:', h, d_before, d_after)
         before_nodes = []
         before_edges = []
         after_nodes = []
