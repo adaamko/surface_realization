@@ -303,8 +303,8 @@ class Grammar():
                 for subset in all_subsets(subgraph_nodes):
                     if binary and len(subset) > 1:
                         break
-                    #if not binary and len(subset) > 5:
-                    #    break
+                    if not binary and len(subset) > 5:
+                        break
                     nodes = [node[0] for node in subset]
                     edges = [node[1] for node in subset]
                     for combined in product(*list(nodes)):
@@ -323,7 +323,7 @@ class Grammar():
                             self.print_subgraph_rules(
                                 subgraph, counter, grammar_fn)
                             counter += 1
-                        elif len(subset) == len(subgraph_nodes) and 'word' not in query_string:
+                        elif (binary or len(subset) == len(subgraph_nodes)) and 'word' not in query_string:
                         # elif len(subset) == 1 and 'word' not in query_string:
                             head = graph["root"][1]
                             dep_before = query_string

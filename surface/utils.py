@@ -1,19 +1,21 @@
-import os
 from collections import namedtuple
-from itertools import chain, combinations, product
+from itertools import chain, combinations
 
 
 def get_ids_from_parse(fn):
     with open(fn, "r") as f:
         next(f)
         parse = next(f).strip()
-        return [n.strip().split('_')[1] for n in parse.strip("[]").split(",")]
+        return [
+            int(n.strip().split('_')[1]) for n in parse.strip("[]").split(",")]
 
 
 def set_parse(fn, graph):
     with open(fn, "w+") as f:
         f.write("# IRTG unannotated corpus file, v1.0\n")
-        f.write("# interpretation ud: de.up.ling.irtg.algebra.graph.GraphAlgebra\n")
+        f.write(
+            "# interpretation ud: de.up.ling.irtg.algebra.graph.GraphAlgebra"
+            "\n")
         f.write(graph + "\n")
         f.write("(dummy_0 / dummy_0)\n")
 
@@ -52,5 +54,5 @@ def get_sens(stream):
 def get_conll_from_file(fn, word_to_id):
     with open(fn, "r") as f:
         return [
-            [fields_to_token(fields, word_to_id) for fields in sen] for sen in get_sens(f)]
-
+            [fields_to_token(fields, word_to_id) for fields in sen]
+            for sen in get_sens(f)]
