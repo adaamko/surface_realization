@@ -2,10 +2,10 @@ import sys
 import re
 import copy
 import operator
-import argparse
 from itertools import chain, combinations, product
 from tqdm import tqdm
 from collections import defaultdict, OrderedDict
+
 from surface.utils import all_subsets
 
 # Uncomment if run from command line
@@ -303,8 +303,8 @@ class Grammar():
                 for subset in all_subsets(subgraph_nodes):
                     if binary and len(subset) > 1:
                         break
-                    if not binary and len(subset) > 5:
-                        break
+                    # if not binary and len(subset) > 5:
+                    #    break
                     nodes = [node[0] for node in subset]
                     edges = [node[1] for node in subset]
                     for combined in product(*list(nodes)):
@@ -450,33 +450,7 @@ class Grammar():
             print("[ud] ?1", file=grammar_fn)
             print(file=grammar_fn)
 
-
-def get_args():
-    parser = argparse.ArgumentParser(
-        description="Train and generate IRTG parser")
-    parser.add_argument("--train_file", type=str,
-                        help="path to the CoNLL train file")
-    parser.add_argument("--test_file", type=str,
-                        help="path to the CoNLL test file")
-    return parser.parse_args()
-
-
-def main():
-    args = get_args()
-    # grammar = Grammar()
-    # word_to_id, id_to_word = converter.build_dictionaries(
-    #     [args.train_file, args.test_file])
-    # grammar.train_subgraphs(args.train_file, args.test_file, word_to_id)
-    # rules, _ = converter.extract_rules(args.test_file, word_to_id)
-    # graphs, _, id_graphs = converter.convert(args.test_file, word_to_id)
-    # _, sentences, _ = converter.convert(args.test_file, word_to_id)
-    # conll = converter.get_conll_from_file(args.test_file, word_to_id)
-    # id_to_parse = {}
-    # stops = []
-    # grammar_fn = open('dep_grammar_spec.irtg', 'w')
-    # grammar.generate_grammar(rules[2], grammar_fn)
-    # grammar.generate_terminal_ids(conll[2], grammar_fn)
-
-
-if __name__ == "__main__":
-    main()
+    def gen_grammar_file(self, sen_rules, grammar_fn, sen, binary=False):
+        with open(grammar_fn, 'w') as grammar_f:
+            self.generate_grammar(sen_rules, grammar_f, binary=binary)
+            self.generate_terminal_ids(sen, grammar_f)
