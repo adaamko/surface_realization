@@ -1,5 +1,6 @@
 import argparse
 import copy
+import logging
 import operator
 import pickle
 import requests
@@ -84,7 +85,7 @@ class Grammar():
     def build_dictionaries(self, files):
         self.word_to_id, self.id_to_word = converter.build_dictionaries(files)
 
-    def train_subgraphs(self, fn_train):
+    def train_subgraphs(self, fn_train, max_subset_size):
         graph_data = {}
         # noun_list = []
         pos_to_order = defaultdict(set)
@@ -97,7 +98,8 @@ class Grammar():
                 if line == "\n":
                     for w in graph_data:
                         self.count_on_graph(
-                            graph_data, w, pos_to_order, order_to_count)
+                            graph_data, w, pos_to_order, order_to_count,
+                            max_subset_size)
 
                     graph_data = {}
                     # noun_list = []
@@ -137,11 +139,13 @@ class Grammar():
 
         self.subgraphs_highest = pos_to_order
 
-    def count_on_graph(self, graph_data, w, pos_to_order, order_to_count):
+    def count_on_graph(
+            self, graph_data, w, pos_to_order, order_to_count,
+            max_subset_size):
         deps = graph_data[w]["deps"]
         possibility = 0
         for subset in all_subsets(list(deps.keys())):
-            if len(subset) > 5:
+            if len(subset) > max_subset_size:
                 return
             nodes_before = []
             nodes_after = []
@@ -261,9 +265,9 @@ class Grammar():
         yield "interpretation ud: de.up.ling.irtg.algebra.graph.GraphAlgebra"
         yield "\n"
 
-    def generate_grammar(self, rules, binary=False):
+    def generate_grammar(self, rules, max_subset_size, binary=False):
         yield from self.gen_header()
-        yield from self.gen_all_rules(rules, binary)
+        yield from self.gen_all_rules(rules, binary, max_subset_size)
 
     def query_order(self, constraints, key):
         if not constraints:
@@ -311,7 +315,7 @@ class Grammar():
         dep_after = fields[2].replace(":", "_").strip("&")
         yield from self.gen_rules(head, dep_before, dep_after, counter)
 
-    def gen_all_rules(self, rules, binary):
+    def gen_all_rules(self, rules, binary, max_subset_size):
         counter = 1
         for graph in rules:
             if graph["root"] != "ROOT":
@@ -326,8 +330,8 @@ class Grammar():
                 for subset in all_subsets(subgraph_nodes):
                     if binary and len(subset) > 1:
                         break
-                    # if not binary and len(subset) > 5:
-                    #    break
+                    if not binary and len(subset) > max_subset_size:
+                        break
                     nodes = [node[0] for node in subset]
                     edges = [node[1] for node in subset]
                     for combined in product(*list(nodes)):
@@ -473,8 +477,10 @@ class Grammar():
             yield "[ud] ?1"
             yield "\n"
 
-    def gen_grammar_lines(self, sen_rules, sen, binary=False):
-        yield from self.generate_grammar(sen_rules, binary=binary)
+    def gen_grammar_lines(
+            self, sen_rules, sen, max_subset_size, binary=False):
+        yield from self.generate_grammar(
+            sen_rules, max_subset_size, binary=binary)
         yield from self.generate_terminal_ids(sen)
 
     def serve(self, port):
@@ -487,7 +493,9 @@ class Grammar():
             rules = r['rules']
             sen = [Token(*tok) for tok in r['sen']]
             binary = r['binary']
-            grammar_lines = list(self.gen_grammar_lines(rules, sen, binary))
+            max_subset_size = r['max_subset_size']
+            grammar_lines = list(self.gen_grammar_lines(
+                rules, sen, max_subset_size, binary))
             ret_value = {"grammar_lines": grammar_lines}
             return jsonify(ret_value)
 
@@ -509,10 +517,11 @@ class GrammarClient():
         data = r.json()
         return data['word_to_id']
 
-    def get_grammar_lines(self, rules, sen, binary=False):
+    def get_grammar_lines(self, rules, sen, max_subset_size, binary=False):
         r = requests.post(f'{self.host}/get_grammar_lines', json={
             "rules": rules,
             "sen": sen,
+            "max_subset_size": max_subset_size,
             "binary": binary})
         data = r.json()
         return data['grammar_lines']
@@ -521,6 +530,8 @@ class GrammarClient():
 def get_args():
     parser = argparse.ArgumentParser(
         description="Train or load grammar and run server")
+    parser.add_argument("--max_subset_size", type=int, default=5,
+                        help="maximum allowed subgraph size (excl. head)")
     parser.add_argument("--model_file", type=str,
                         help="path to model file to save to or load from")
     parser.add_argument("--train_file", type=str,
@@ -535,14 +546,15 @@ def get_args():
 def train_or_load_model(args):
     if args.train_file:
         grammar = Grammar()
-        print(f'training model from {args.train_file}...')
+        logging.info(f'training model from {args.train_file}...')
         grammar.build_dictionaries([args.train_file, args.test_file])
-        grammar.train_subgraphs(args.train_file)
-        print(f'saving model to {args.model_file}...')
+        grammar.train_subgraphs(args.train_file, args.max_subset_size)
+        logging.info(f'saving model to {args.model_file}...')
         grammar.save(args.model_file)
     elif args.model_file:
-        print(f'loading model from {args.model_file}...')
+        logging.info(f'loading model from {args.model_file}...')
         grammar = Grammar.load(args.model_file)
+        logging.info('done!')
     else:
         print('no training file and no pre-trained model file provided!')
         sys.exit(-1)
@@ -551,6 +563,11 @@ def train_or_load_model(args):
 
 
 def main():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s : " +
+        "%(module)s (%(lineno)s) - %(levelname)s - %(message)s")
+
     args = get_args()
     grammar = train_or_load_model(args)
     grammar.serve(args.port)

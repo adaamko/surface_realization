@@ -16,6 +16,8 @@ def get_args():
                         help="path to output file")
     parser.add_argument("--host", type=str, default='http://localhost',
                         help="grammar server port")
+    parser.add_argument("--max_subset_size", type=int, default=5,
+                        help="maximum allowed subgraph size (excl. head)")
     parser.add_argument("--port", type=int, default=4784,
                         help="grammar server port")
     parser.add_argument("--test_file", type=str,
@@ -42,14 +44,14 @@ def surface_realization(grammar, args):
         args.test_file, grammar.word_to_id)
     conll = utils.get_conll_from_file(
         args.test_file, grammar.word_to_id)
-    pred_ids = {}
     for i in range(len(rules)):
         print(f'processing sentence {i}...')
         grammar_fn, input_fn, output_fn = (
             os.path.join(args.gen_dir, fn) for fn in (
                 f'{i}.irtg', f'{i}.input', f'{i}.output'))
         utils.set_parse(input_fn, id_graphs[i])
-        grammar_lines = grammar.get_grammar_lines(rules[i], conll[i])
+        grammar_lines = grammar.get_grammar_lines(
+            rules[i], conll[i], args.max_subset_size)
         with open(grammar_fn, 'w') as grammar_f:
             grammar_f.write("\n".join(grammar_lines))
         command = get_alto_command(
@@ -59,7 +61,7 @@ def surface_realization(grammar, args):
             print(f'sen {i} timed out, falling back to binary grammar')
             grammar_fn = f'{i}_bin.irtg'
             grammar_lines = grammar.get_grammar_lines(
-                rules[i], conll[i], binary=True)
+                rules[i], conll[i], args.max_subset_size, binary=True)
             with open(grammar_fn, 'w') as grammar_f:
                 grammar_f.write("\n".join(grammar_lines))
             command = get_alto_command(
@@ -67,20 +69,19 @@ def surface_realization(grammar, args):
             cproc = subprocess.run(command)
             if cproc.returncode == 124:
                 print(f'sen {i} timed out again, skipping')
-                pred_ids[i] = None
+                yield conll[i], None
                 continue
         elif cproc.returncode != 0:
             print(f'alto error on sentence {i}, skipping')
-            pred_ids[i] = None
+            yield conll[i], None
             continue
 
         try:
-            pred_ids[i] = utils.get_ids_from_parse(output_fn)
+            pred_ids = utils.get_ids_from_parse(output_fn)
+            yield conll[i], pred_ids
         except IndexError:
             print(f'no parse for sentence {i}, skipping')
-            pred_ids[i] = None
-
-    return pred_ids, conll
+            yield conll[i], None
 
 
 def orig_order(toks):
@@ -90,7 +91,7 @@ def orig_order(toks):
 
 def gen_result_lines(sen_id, sen, ids):
     words = " ".join(tok.word for tok in orig_order(sen))
-    yield f"# {sen_id}: {words}\n"
+    yield f"# {sen_id}: {words}"
     if ids is None:
         yield f"# no parse for sentence {sen_id}"
         yield "\n"
@@ -115,19 +116,14 @@ def gen_result_lines(sen_id, sen, ids):
     yield "\n"
 
 
-def print_results(pred_ids, conll, output_fn):
-    with open(output_fn, "w") as f:
-        for sen_id, ids in pred_ids.items():
-            sen = conll[sen_id]
-            f.write("\n".join(gen_result_lines(sen_id, sen, ids)))
-
-
 def main():
     args = get_args()
     assert os.path.isdir(args.gen_dir)
     grammar = GrammarClient(f"{args.host}:{args.port}")
-    pred_ids, conll = surface_realization(grammar, args)
-    print_results(pred_ids, conll, args.output_file)
+    with open(args.output_file, "w") as f:
+        for sen_id, (sen, pred_ids) in enumerate(
+                surface_realization(grammar, args)):
+            f.write("\n".join(gen_result_lines(sen_id, sen, pred_ids)))
 
 
 if __name__ == "__main__":
