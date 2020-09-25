@@ -12,13 +12,11 @@ from collections import defaultdict, OrderedDict
 from flask import Flask
 from flask import request
 from flask import jsonify
+from stanza.models.common.doc import Document as StanzaDocument
 
 from surface import converter
-from surface.utils import all_subsets, Token
+from surface.utils import all_subsets
 
-# Uncomment if run from command line
-# from utils import all_subsets
-# import converter
 
 REPLACE_MAP = {
     ":": "COLON",
@@ -235,7 +233,7 @@ class Grammar():
             word = word.upper()
         return word
 
-    def generate_terminal_ids(self, conll):
+    def generate_terminal_ids(self, sen):
         TEMPLATE = "\n".join([
             '{0} -> {0}_{1}',
             '[string] {0}_{1}',
@@ -250,10 +248,11 @@ class Grammar():
 
         rules = []
 
-        for tok in conll:
-            template = TEMPLATE.format(tok.word_id, tok.id)
+        for tok in sen.words:
+            word_id = self.word_to_id[tok.lemma.lower()]
+            template = TEMPLATE.format(word_id, tok.id)
             pos_template = POS_TEMPLATE.format(
-                tok.pos, tok.id, tok.word_id)
+                tok.pos, tok.id, word_id)
             rules.append(template)
             rules.append(pos_template)
 
@@ -491,7 +490,8 @@ class Grammar():
         def get_grammar_lines():
             r = request.json
             rules = r['rules']
-            sen = [Token(*tok) for tok in r['sen']]
+            assert rules
+            sen = StanzaDocument([r['sen']]).sentences[0]
             binary = r['binary']
             max_subset_size = r['max_subset_size']
             grammar_lines = list(self.gen_grammar_lines(
@@ -520,7 +520,7 @@ class GrammarClient():
     def get_grammar_lines(self, rules, sen, max_subset_size, binary=False):
         r = requests.post(f'{self.host}/get_grammar_lines', json={
             "rules": rules,
-            "sen": sen,
+            "sen": sen.to_dict(),
             "max_subset_size": max_subset_size,
             "binary": binary})
         data = r.json()
