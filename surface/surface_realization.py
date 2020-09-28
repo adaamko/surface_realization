@@ -1,6 +1,9 @@
 import argparse
+import logging
 import os
 import subprocess
+
+from stanza.models.common.doc import Document as StanzaDocument
 
 from surface.grammar import GrammarClient
 from surface.utils import (
@@ -10,8 +13,23 @@ from surface.utils import (
     get_ids_from_parse,
     get_isi_sgraph,
     get_rules,
+    merge_sens,
     print_conll_sen,
-    reorder_sentence)
+    reorder_sentence,
+    split_sen_on_edges,
+    words
+)
+
+
+RECURSIVE = True
+
+SPLIT_EDGES = {
+    "acl",
+    "advcl",
+    "ccomp",
+    "xcomp",
+    "conj"
+}
 
 
 def get_args():
@@ -45,10 +63,10 @@ def get_alto_command(timeout, input_fn, grammar_fn, output_fn):
         '-o', output_fn]
 
 
-def surface_realization(sen, i, grammar, args):
+def predict_word_order(sen, i, root_id, grammar, args):
     """expects stanza Sentence, surface.Grammar, args"""
 
-    graph, root_id = get_graph(sen, grammar.word_to_id)
+    graph = get_graph(sen, grammar.word_to_id)
     isi_sgraph = get_isi_sgraph(graph, root_id)
     rules = get_rules(graph)
 
@@ -95,7 +113,66 @@ def orig_order(toks):
         toks, key=lambda tok: int(tok.feats.split('|')[-1].split('=')[-1]))
 
 
+def one_step_surface_realization(
+        sen, sen_id, root_id, grammar, args, keep_ids=False):
+    pred_ids = predict_word_order(sen, sen_id, root_id, grammar, args)
+    out_sen = reorder_sentence(sen, pred_ids, keep_ids)
+    return out_sen
+
+
+def rec_surface_realization(sen, sen_id, root_head, grammar, args):
+    logging.debug(f'*** {sen_id} ***')
+    logging.debug(words(sen))
+    logging.debug('******')
+    top_sen, root_id, subsens = split_sen_on_edges(sen, root_head, SPLIT_EDGES)
+
+    if len(subsens) == 1:
+        logging.debug('no real split, running single step SR')
+        reordered_sen = one_step_surface_realization(
+            sen, sen_id, root_id, grammar, args, keep_ids=True)
+        return reordered_sen, root_id
+
+    logging.debug('split results:')
+    logging.debug('{0} {1}'.format('top_sen:', words(top_sen)))
+    for i, (subsen, s_root_id) in enumerate(subsens):
+        logging.debug('subsen {0}, children of #{1}: {2}'.format(
+            i, s_root_id, words(subsen)))
+
+    reordered_top_sen = one_step_surface_realization(
+        top_sen, sen_id, root_id, grammar, args, keep_ids=True)
+
+    reordered_subsens = []
+    for i, (subsen, s_root_head) in enumerate(subsens):
+        subsen_id = f"{sen_id}_{i}"
+        reordered_subsen, s_root_id = rec_surface_realization(
+            subsen, subsen_id, s_root_head, grammar, args)
+        reordered_subsens.append((reordered_subsen, s_root_id))
+
+    reordered_sen = merge_sens(reordered_top_sen, reordered_subsens)
+
+    logging.debug('merged sen: {}'.format(words(reordered_sen)))
+
+    return reordered_sen, root_id
+
+
+def surface_realization(sen, sen_id, grammar, args):
+    toks = sen.to_dict()
+    if RECURSIVE:
+        reordered_sen, _ = rec_surface_realization(
+            toks, sen_id, 0, grammar, args)
+    else:
+        reordered_sen = one_step_surface_realization(
+            toks, sen_id, grammar, args)
+
+    return StanzaDocument([reordered_sen]).sentences[0]
+
+
 def main():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s : " +
+        "%(module)s (%(lineno)s) - %(levelname)s - %(message)s")
+
     args = get_args()
     assert os.path.isdir(args.gen_dir)
     grammar = GrammarClient(f"{args.host}:{args.port}")
@@ -103,13 +180,8 @@ def main():
         for sen_id, sen in enumerate(
                 gen_conll_sens_from_file(args.test_file, swaps=((1, 2),))):
             print(f'processing sentence {sen_id}...')
-            pred_ids = surface_realization(sen, sen_id, grammar, args)
-            if pred_ids is None:
-                message = f"no parse for sentence {sen_id}"
-                print(message)
-                f.write(f"# {message}\n".upper())
+            out_sen = surface_realization(sen, sen_id, grammar, args)
 
-            out_sen = reorder_sentence(sen, pred_ids)
             f.write(print_conll_sen(out_sen, sen_id))
             f.write('\n')
 
