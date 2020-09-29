@@ -164,6 +164,9 @@ def surface_realization(sen, sen_id, grammar, args):
         reordered_sen = one_step_surface_realization(
             toks, sen_id, grammar, args)
 
+    for i, tok in enumerate(reordered_sen):
+        tok['id'] = i + 1
+
     return StanzaDocument([reordered_sen]).sentences[0]
 
 

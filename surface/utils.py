@@ -117,9 +117,11 @@ def gen_conll_sens_from_file(fn, swaps=()):
         yield from gen_conll_sens(f, swaps)
 
 
-def print_conll_sen(sen, sent_id=None):
+def print_conll_sen(sen, sent_id=None, swaps=()):
     out = f'# sent_id = {sent_id}\n# text = {sen.text}\n'
     for fields in CoNLL.convert_dict([sen.to_dict()])[0]:
+        for i, j in swaps:
+            fields[i], fields[j] = fields[j], fields[i]
         out += "\t".join(fields) + '\n'
     return out
 
@@ -131,7 +133,7 @@ def get_graph(sen, word_to_id):
             "word": word_to_id[tok['lemma'].lower()],
             # calling upos tree_pos for backward compatibility
             "tree_pos": sanitize_word(tok['upos']),
-            "mor": tok['feats']})
+            "mor": tok.get('feats', '_')})
 
         graph[tok['head']]['deps'][tok['id']] = tok['deprel']
 

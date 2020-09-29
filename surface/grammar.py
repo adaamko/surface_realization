@@ -82,46 +82,46 @@ class Grammar():
     def build_dictionaries(self, files):
         self.word_to_id, self.id_to_word = converter.build_dictionaries(files)
 
-    def train_subgraphs(self, fn_train, max_subset_size):
+    def train_subgraphs(self, train_fns, max_subset_size):
         graph_data = {}
         # noun_list = []
         pos_to_order = defaultdict(set)
         order_to_count = defaultdict(lambda: 1)
+        for fn_train in train_fns:
+            with open(fn_train, "r") as f:
+                for i, line in tqdm(enumerate(f)):
+                    if line.startswith("#"):
+                        continue
+                    if line == "\n":
+                        for w in graph_data:
+                            self.count_on_graph(
+                                graph_data, w, pos_to_order, order_to_count,
+                                max_subset_size)
 
-        with open(fn_train, "r") as f:
-            for i, line in tqdm(enumerate(f)):
-                if line.startswith("#"):
-                    continue
-                if line == "\n":
-                    for w in graph_data:
-                        self.count_on_graph(
-                            graph_data, w, pos_to_order, order_to_count,
-                            max_subset_size)
+                        graph_data = {}
+                        # noun_list = []
+                        continue
+                    if line != "\n":
+                        fields = line.split("\t")
+                        word_id = fields[0]
+                        word = fields[2]
+                        lemma = fields[1]
+                        tree_pos = fields[3]
+                        # ud_pos = fields[4]
+                        mor = fields[5]
+                        head = fields[6]
+                        ud_edge = fields[7]
 
-                    graph_data = {}
-                    # noun_list = []
-                    continue
-                if line != "\n":
-                    fields = line.split("\t")
-                    word_id = fields[0]
-                    word = fields[2]
-                    lemma = fields[1]
-                    tree_pos = fields[3]
-                    # ud_pos = fields[4]
-                    mor = fields[5]
-                    head = fields[6]
-                    ud_edge = fields[7]
+                        self.make_default_structure(graph_data, word_id)
+                        graph_data[word_id]["word"] = word
+                        graph_data[word_id]["lemma"] = self.word_to_id[lemma.lower()]  # noqa
+                        graph_data[word_id]["tree_pos"] = self.sanitize_word(
+                            tree_pos)
+                        graph_data[word_id]["mor"] = int(
+                            mor.split("|")[-1].split("original_id=")[1])
 
-                    self.make_default_structure(graph_data, word_id)
-                    graph_data[word_id]["word"] = word
-                    graph_data[word_id]["lemma"] = self.word_to_id[lemma.lower()]  # noqa
-                    graph_data[word_id]["tree_pos"] = self.sanitize_word(
-                        tree_pos)
-                    graph_data[word_id]["mor"] = int(
-                        mor.split("|")[-1].split("original_id=")[1])
-
-                    self.make_default_structure(graph_data, head)
-                    graph_data[head]["deps"][word_id] = ud_edge
+                        self.make_default_structure(graph_data, head)
+                        graph_data[head]["deps"][word_id] = ud_edge
 
         sorted_x = sorted(order_to_count.items(),
                           key=operator.itemgetter(1), reverse=True)
@@ -247,11 +247,11 @@ class Grammar():
 
         rules = []
 
-        for tok in sen['words']:
+        for tok in sen:
             word_id = self.word_to_id[tok['lemma'].lower()]
             template = TEMPLATE.format(word_id, tok['id'])
             pos_template = POS_TEMPLATE.format(
-                tok['pos'], tok['id'], word_id)
+                tok['upos'], tok['id'], word_id)
             rules.append(template)
             rules.append(pos_template)
 
@@ -536,21 +536,21 @@ def get_args():
                         help="maximum allowed subgraph size (excl. head)")
     parser.add_argument("--model_file", type=str,
                         help="path to model file to save to or load from")
-    parser.add_argument("--train_file", type=str,
-                        help="path to the CoNLL train file")
-    parser.add_argument("--test_file", type=str,
-                        help="path to the CoNLL test file")
+    parser.add_argument("--train_files", nargs='+',
+                        help="list of CoNLL train files")
+    parser.add_argument("--test_files", nargs='+',
+                        help="list of CoNLL test files (for vocab building)")
     parser.add_argument("--port", type=int, default=4784,
                         help="server port")
     return parser.parse_args()
 
 
 def train_or_load_model(args):
-    if args.train_file:
+    if args.train_files:
         grammar = Grammar()
-        logging.info(f'training model from {args.train_file}...')
-        grammar.build_dictionaries([args.train_file, args.test_file])
-        grammar.train_subgraphs(args.train_file, args.max_subset_size)
+        logging.info(f'training model from {args.train_files}...')
+        grammar.build_dictionaries(args.train_files + args.test_files)
+        grammar.train_subgraphs(args.train_files, args.max_subset_size)
         logging.info(f'saving model to {args.model_file}...')
         grammar.save(args.model_file)
     elif args.model_file:
