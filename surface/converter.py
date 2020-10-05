@@ -1,57 +1,11 @@
 import sys
 import argparse
+import json
 import os
 import re
 from collections import defaultdict
 
-SEEN = set()
-
-REPLACE_MAP = {
-    ":": "COLON",
-    ",": "COMMA",
-    ".": "PERIOD",
-    ";": "SEMICOLON",
-    "-": "HYPHEN",
-    "_": "DASH",
-    "[": "LSB",
-    "]": "RSB",
-    "(": "LRB",
-    ")": "RRB",
-    "{": "LCB",
-    "}": "RCB",
-    "!": "EXC",
-    "?": "QUE",
-    "'": "SQ",
-    '"': "DQ",
-    "/": "PER",
-    "\\": "BSL",
-    "#": "HASHTAG",
-    "%": "PERCENT",
-    "&": "ET",
-    "@": "AT",
-    "$": "DOLLAR",
-    "*": "ASTERISK",
-    "^": "CAP",
-    "`": "IQ",
-    "+": "PLUS",
-    "|": "PIPE",
-    "~": "TILDE",
-    "<": "LESS",
-    ">": "MORE",
-    "=": "EQ"
-}
-NON_ENGLISH_CHARACTERS = re.compile(r"[^a-zA-Z]")
-
-KEYWORDS = set(["feature"])
-
-TEMPLATE = (
-    '{0} -> {1}_{0}\n' +
-    '[string] {1}\n' +
-    '[tree] {0}({1})\n' +
-    '[ud] "({1}<root> / {1})"\n' +
-    '[fourlang] "({1}<root> / {1})"\n'
-)
-
+from surface.utils import REPLACE_MAP, sanitize_word
 
 def build_dictionaries(filepaths):
     word_to_id = {}
@@ -100,45 +54,6 @@ def build_dictionaries(filepaths):
     return word_to_id, id_to_word
 
 
-def get_conll_from_file(fn, word_to_id):
-    id_to_conll = defaultdict(dict)
-
-    sentences = 0
-    with open(fn, "r") as f:
-        for line in f:
-            if line == "\n":
-                sentences += 1
-            if line.startswith("#"):
-                continue
-            if line != "\n":
-                fields = line.split("\t")
-                word_id = fields[0]
-                word = fields[2]
-                lemma = fields[1]
-                tree_pos = fields[3]
-                ud_pos = fields[4]
-                mor = fields[5]
-                head = fields[6]
-                ud_edge = fields[7]
-                comp_edge = fields[8]
-                space_after = fields[9]
-
-                id_to_conll[sentences][word_id] = [
-                    lemma, word, tree_pos, ud_pos,  mor, head, ud_edge, comp_edge, space_after, word_to_id[lemma.lower()]]
-
-    return id_to_conll
-
-
-def sanitize_word(word):
-    for pattern, target in REPLACE_MAP.items():
-        word = word.replace(pattern, target)
-    for digit in "0123456789":
-        word = word.replace(digit, "DIGIT")
-    if word in KEYWORDS:
-        word = word.upper()
-    NON_ENGLISH_CHARACTERS.sub("SPECIALCHAR", word)
-
-    return word
 
 
 def get_args():
@@ -147,13 +62,6 @@ def get_args():
     parser.add_argument("conll_file", type=str, help="path to the CoNLL file")
     return parser.parse_args()
 
-
-def make_default_structure(graph_data, word_id):
-    if word_id not in graph_data:
-        graph_data[word_id] = {
-            "word": "",
-            "deps": {},
-        }
 
 
 def to_tokenized_output(result_dir, output_dir):
@@ -186,6 +94,7 @@ def to_tokenized_output(result_dir, output_dir):
                 f.write("#sent_id = " + str(i+1) + "\n")
                 f.write("#text = " + sentence + "\n")
                 f.write("\n")
+
 
 
 def extract_rules(dev, word_to_id):
@@ -320,6 +229,7 @@ def convert(conll_file, word_to_id):
         sen_id = 0
         for line in conll_file:
             if line == "\n":
+                print(json.dumps(graph_data))
                 graph = make_graph_string(graph_data, graph_root)
                 id_graph = make_id_graph(graph_data, graph_root, word_to_id)
                 graphs.append(graph)
@@ -375,6 +285,14 @@ def convert(conll_file, word_to_id):
             f.write(sentence + "\n")
 
     return id_to_graph, id_to_sentences, id_to_idgraph
+
+
+def make_default_structure(graph_data, word_id):
+    if word_id not in graph_data:
+        graph_data[word_id] = {
+            "word": "",
+            "deps": {},
+        }
 
 
 def main():
