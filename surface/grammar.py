@@ -206,8 +206,8 @@ class Grammar():
                     pos_line_key += pos + "|" + edge + "&"
                     lemma_line_key += lemma + "|" + edge + "&"
 
-                nodes.sort(key=lambda x: graph_data[str(x)]["element"])
-                for n in nodes:
+                sorted_nodes_order = sorted(nodes, key=lambda x: graph_data[str(x)]["element"])
+                for n in sorted_nodes_order:
                     n = str(n)
                     edge = graph_data[w]["deps"][n].replace(":", "_")
                     pos = graph_data[n]["element"]
