@@ -6,7 +6,7 @@ This branch contains our system for the **Surface Realisation Shared Task 2020**
 
 To train a model for a given language on the SRST2019 train and dev datasets and then host it on a given port:
 ```
-lang=en; python surface/grammar.py --model_file models/$lang.bin --train_files data/T1-train/${lang}_* data/T1-dev/${lang}_* --test_files data/T1-test/${lang}_* data/T1-dev/${lang}_* --port 4780
+lang=en; python surface/grammar.py --model_file models/$lang.bin --train_files data/T1-train/${lang}_* --test_files data/T1-test/${lang}_* data/T1-dev/${lang}_* --port 4780
 ```
 
 Note that you have to specify the test files also so that the vocabulary of the
