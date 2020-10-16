@@ -9,6 +9,10 @@ setup(
     author_email='adam.kovacs@tuwien.ac.at,gabor.recski@tuwien.ac.at',
     license='MIT',
     install_requires=[
+        'flask',
+        'requests',
+        'stanza',
+        'tqdm'
     ],
     packages=find_packages(),
     zip_safe=False)
